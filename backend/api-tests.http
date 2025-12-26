@@ -1,0 +1,13 @@
+### Health Check
+GET http://localhost:8090/actuator/health
+
+### Test Order Creation (will implement next)
+POST http://localhost:8090/api/orders
+Content-Type: application/json
+
+{
+  "orderType": "DINE_IN",
+  "tableId": "123e4567-e89b-12d3-a456-426614174000",
+  "serverId": "123e4567-e89b-12d3-a456-426614174001",
+  "items": []
+}
