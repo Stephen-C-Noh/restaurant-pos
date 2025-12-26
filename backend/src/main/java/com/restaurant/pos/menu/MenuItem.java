@@ -27,6 +27,10 @@ public class MenuItem {
     @Column(columnDefinition = "TEXT")
     private String description;
 
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private KitchenSection kitchenSection;
+
     @Column(unique = true, length = 50)
     private String sku;
 
