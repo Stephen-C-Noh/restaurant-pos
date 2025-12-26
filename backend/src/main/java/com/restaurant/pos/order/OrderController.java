@@ -38,4 +38,9 @@ public class OrderController {
         OrderResponse updated = orderService.updateOrderStatus(id, status);
         return ResponseEntity.ok(updated);
     }
+
+    @PostMapping("/{id}/fire")
+    public ResponseEntity<OrderResponse> fireOrder(@PathVariable UUID id) {
+        return ResponseEntity.ok(orderService.fireOrder(id));
+    }
 }
