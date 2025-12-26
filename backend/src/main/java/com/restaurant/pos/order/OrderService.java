@@ -121,6 +121,7 @@ public class OrderService {
         response.setNotes(order.getNotes());
         response.setCreatedAt(order.getCreatedAt());
         response.setUpdatedAt(order.getUpdatedAt());
+        response.setFiredAt(order.getFiredAt());
 
         // Load items
         List<OrderItem> items = orderItemRepository.findByOrderId(order.getId());
@@ -155,35 +156,28 @@ public class OrderService {
 
     @Transactional
     public OrderResponse fireOrder(UUID id) {
-        // TODO: Step 1 - Find the order by ID (throw exception if not found)
         Order order = orderRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Order not found: " + id));
 
-        // TODO: Step 2 - Validate order status (must be DRAFT or SUBMITTED)
         OrderStatus orderStatus = order.getStatus();
         if(!orderStatus.equals(OrderStatus.DRAFT) && !orderStatus.equals(OrderStatus.SUBMITTED)) {
             throw new IllegalStateException("An order should only be fired when it's in DRAFT or SUBMITTED Current Status: " + orderStatus);
         }
 
-        // TODO: Step 3 - Validate order has items
         List<OrderItem> items = orderItemRepository.findByOrderId(order.getId());
         if (items.isEmpty()) {
             throw new IllegalStateException("Cannot fire an empty order");
         }
 
-        // TODO: Step 4 - Set status to FIRED
         order.setStatus(OrderStatus.FIRED);
 
-        // TODO: Step 5 - Set firedAt timestamp
         order.setFiredAt(Instant.now());
 
-        // TODO: Step 6 - Update all order items to SENT status
         for (OrderItem item : items){
             item.setStatus(OrderItemStatus.FIRED);
             orderItemRepository.save(item);
         }
 
-        // TODO: Step 7 - Save and return
         orderRepository.save(order);
         return toOrderResponse(order);
     }

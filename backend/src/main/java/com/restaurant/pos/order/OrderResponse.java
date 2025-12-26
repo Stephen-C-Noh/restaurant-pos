@@ -23,4 +23,5 @@ public class OrderResponse {
     private List<OrderItemResponse> items;
     private Instant createdAt;
     private Instant updatedAt;
+    private Instant firedAt;
 }
