@@ -1,5 +1,9 @@
 package com.restaurant.pos.order;
 
+import com.restaurant.pos.events.EventPublisher;
+import com.restaurant.pos.events.OrderFiredEvent;
+import com.restaurant.pos.events.OrderItemEvent;
+import com.restaurant.pos.menu.KitchenSection;
 import com.restaurant.pos.menu.MenuItem;
 import com.restaurant.pos.menu.MenuService;
 import lombok.RequiredArgsConstructor;
@@ -10,6 +14,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -20,6 +25,7 @@ public class OrderService {
     private final OrderRepository orderRepository;
     private final OrderItemRepository orderItemRepository;
     private final MenuService menuService;
+    private final EventPublisher eventPublisher;
 
     @Transactional(readOnly = true)
     public List<OrderResponse> getAllOrders() {
@@ -179,6 +185,66 @@ public class OrderService {
         }
 
         orderRepository.save(order);
+
+        // Group items by kitchen section for the event
+        Map<KitchenSection, List<OrderItemEvent>> itemsBySection = items.stream()
+                .collect(Collectors.groupingBy(
+                        item -> {
+                            MenuItem menuItem = menuService.getMenuItemById(item.getMenuItemId());
+                            return menuItem.getKitchenSection();
+                        },
+                        Collectors.mapping(
+                                item -> {
+                                    MenuItem menuItem = menuService.getMenuItemById(item.getMenuItemId());
+                                    return new OrderItemEvent(
+                                            item.getId(),
+                                            item.getMenuItemId(),
+                                            menuItem.getName(),
+                                            item.getQuantity(),
+                                            item.getUnitPrice(),
+                                            item.getSpecialInstructions()
+                                    );
+                                },
+                                Collectors.toList()
+                        )
+                ));
+
+// Create and publish the event
+        OrderFiredEvent event = new OrderFiredEvent(
+                order.getId(),
+                order.getOrderNumber(),
+                order.getFiredAt(),
+                itemsBySection
+        );
+
+        eventPublisher.publishOrderFiredEvent(event);
+        /*
+        If we wrote this without streams, it would look like:
+
+        Map<KitchenSection, List<OrderItemEvent>> itemsBySection = new HashMap<>();
+
+        for (OrderItem item : items) {
+            // Get the menu item
+            MenuItem menuItem = menuService.getMenuItemById(item.getMenuItemId());
+            KitchenSection section = menuItem.getKitchenSection();
+
+            // Create the event object
+            OrderItemEvent eventItem = new OrderItemEvent(
+                item.getId(),
+                item.getMenuItemId(),
+                menuItem.getName(),
+                item.getQuantity(),
+                item.getUnitPrice(),
+                item.getSpecialInstructions()
+            );
+
+            // Add to the map
+            if (!itemsBySection.containsKey(section)) {
+                itemsBySection.put(section, new ArrayList<>());
+            }
+            itemsBySection.get(section).add(eventItem);
+        }
+        */
         return toOrderResponse(order);
     }
 }
