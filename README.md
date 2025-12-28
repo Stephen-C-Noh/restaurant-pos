@@ -128,4 +128,6 @@ This is a learning project for educational purposes.
 
 ## 👤 Author
 
+Changbeom(Stephen) Noh.
+
 Created as a portfolio project to demonstrate production-grade software engineering practices.
