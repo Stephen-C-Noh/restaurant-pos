@@ -54,7 +54,8 @@ public class KafkaConfig {
         config.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
         config.put(JsonDeserializer.TRUSTED_PACKAGES, "com.restaurant.pos.events");
         config.put(JsonDeserializer.USE_TYPE_INFO_HEADERS, false);
-        config.put(JsonDeserializer.VALUE_DEFAULT_TYPE, DomainEvent.class);
+        //config.put(JsonDeserializer.VALUE_DEFAULT_TYPE, DomainEvent.class);
+        config.put(JsonDeserializer.VALUE_DEFAULT_TYPE, "com.restaurant.pos.events.OrderFiredEvent");
         return new DefaultKafkaConsumerFactory<>(config);
     }
 
