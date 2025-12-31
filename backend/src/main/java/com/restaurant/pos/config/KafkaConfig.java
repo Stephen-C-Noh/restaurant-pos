@@ -1,6 +1,8 @@
 package com.restaurant.pos.config;
 
 import com.restaurant.pos.events.DomainEvent;
+import com.restaurant.pos.events.ItemStatusChangedEvent;
+import com.restaurant.pos.events.OrderFiredEvent;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.common.serialization.StringDeserializer;
@@ -43,27 +45,50 @@ public class KafkaConfig {
         return new KafkaTemplate<>(producerFactory());
     }
 
-    // Consumer Configuration
+    // Consumer Configuration - Simple!
+    // Consumer Factory for OrderFiredEvent
     @Bean
-    public ConsumerFactory<String, DomainEvent> consumerFactory() {
+    public ConsumerFactory<String, OrderFiredEvent> orderFiredConsumerFactory() {
         Map<String, Object> config = new HashMap<>();
         config.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
-        config.put(ConsumerConfig.GROUP_ID_CONFIG, "pos-service-group");
+        config.put(ConsumerConfig.GROUP_ID_CONFIG, "kds-consumer-group");
         config.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
         config.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, JsonDeserializer.class);
         config.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
-        config.put(JsonDeserializer.TRUSTED_PACKAGES, "com.restaurant.pos.events");
-        config.put(JsonDeserializer.USE_TYPE_INFO_HEADERS, false);
-        //config.put(JsonDeserializer.VALUE_DEFAULT_TYPE, DomainEvent.class);
+        config.put(JsonDeserializer.TRUSTED_PACKAGES, "*");
         config.put(JsonDeserializer.VALUE_DEFAULT_TYPE, "com.restaurant.pos.events.OrderFiredEvent");
         return new DefaultKafkaConsumerFactory<>(config);
     }
 
+    // Consumer Factory for ItemStatusChangedEvent
     @Bean
-    public ConcurrentKafkaListenerContainerFactory<String, DomainEvent> kafkaListenerContainerFactory() {
-        ConcurrentKafkaListenerContainerFactory<String, DomainEvent> factory =
+    public ConsumerFactory<String, ItemStatusChangedEvent> itemStatusConsumerFactory() {
+        Map<String, Object> config = new HashMap<>();
+        config.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
+        config.put(ConsumerConfig.GROUP_ID_CONFIG, "kds-consumer-group");
+        config.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
+        config.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, JsonDeserializer.class);
+        config.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
+        config.put(JsonDeserializer.TRUSTED_PACKAGES, "*");
+        config.put(JsonDeserializer.VALUE_DEFAULT_TYPE, "com.restaurant.pos.events.ItemStatusChangedEvent");
+        return new DefaultKafkaConsumerFactory<>(config);
+    }
+
+    // Listener factory for OrderFiredEvent
+    @Bean
+    public ConcurrentKafkaListenerContainerFactory<String, OrderFiredEvent> orderFiredKafkaListenerContainerFactory() {
+        ConcurrentKafkaListenerContainerFactory<String, OrderFiredEvent> factory =
                 new ConcurrentKafkaListenerContainerFactory<>();
-        factory.setConsumerFactory(consumerFactory());
+        factory.setConsumerFactory(orderFiredConsumerFactory());
+        return factory;
+    }
+
+    // Listener factory for ItemStatusChangedEvent
+    @Bean
+    public ConcurrentKafkaListenerContainerFactory<String, ItemStatusChangedEvent> itemStatusKafkaListenerContainerFactory() {
+        ConcurrentKafkaListenerContainerFactory<String, ItemStatusChangedEvent> factory =
+                new ConcurrentKafkaListenerContainerFactory<>();
+        factory.setConsumerFactory(itemStatusConsumerFactory());
         return factory;
     }
 }

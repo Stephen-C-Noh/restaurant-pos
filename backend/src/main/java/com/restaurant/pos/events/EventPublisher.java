@@ -39,20 +39,35 @@ import org.springframework.stereotype.Service;
 // Lombok annotation that gives you a logger automatically
 
 public class EventPublisher {
+
     private final KafkaTemplate<String, DomainEvent> kafkaTemplate;
 
-    private static final String ORDER_EVENTS_TOPIC = "order-events";
+    private static final String ORDER_FIRED_TOPIC = "order-fired-events";        // ← Separate topic!
+    private static final String ITEM_STATUS_TOPIC = "item-status-events";        // ← Separate topic!
     // ORDER_EVENTS_TOPIC - The Kafka topic name where events go
 
-    public void publishOrderFiredEvent(OrderFiredEvent event){
+    public void publishOrderFiredEvent(OrderFiredEvent event) {
         // publishOrderFiredEvent() - Sends the event to Kafka
         try {
-            log.info("Publishing order fired event to topic {}", event.getOrderNumber());
-            kafkaTemplate.send(ORDER_EVENTS_TOPIC, event.getOrderId().toString(), event);
+            log.info("Publishing OrderFiredEvent for order: {}", event.getOrderNumber());
+            kafkaTemplate.send(ORDER_FIRED_TOPIC, event.getOrderId().toString(), event);  // ← New topic
             log.info("Successfully published OrderFiredEvent for order: {}", event.getOrderNumber());
         } catch (Exception e) {
             log.error("Failed to publish OrderFiredEvent for order: {}", event.getOrderNumber(), e);
-            throw new RuntimeException("Failed to publish OrderFiredEvent", e);
+            throw new RuntimeException("Failed to publish event", e);
         }
     }
+
+    public void publishItemStatusChangedEvent(ItemStatusChangedEvent event) {
+        try {
+            log.info("Publishing ItemStatusChangedEvent for item: {} ({} -> {})",
+                    event.getMenuItemName(), event.getOldStatus(), event.getNewStatus());
+            kafkaTemplate.send(ITEM_STATUS_TOPIC, event.getOrderId().toString(), event);  // ← New topic
+            log.info("Successfully published ItemStatusChangedEvent for item: {}", event.getMenuItemName());
+        } catch (Exception e) {
+            log.error("Failed to publish ItemStatusChangedEvent for item: {}", event.getMenuItemName(), e);
+            throw new RuntimeException("Failed to publish event", e);
+        }
+    }
+
 }

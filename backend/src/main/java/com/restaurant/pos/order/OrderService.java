@@ -1,12 +1,14 @@
 package com.restaurant.pos.order;
 
 import com.restaurant.pos.events.EventPublisher;
+import com.restaurant.pos.events.ItemStatusChangedEvent;
 import com.restaurant.pos.events.OrderFiredEvent;
 import com.restaurant.pos.events.OrderItemEvent;
 import com.restaurant.pos.menu.KitchenSection;
 import com.restaurant.pos.menu.MenuItem;
 import com.restaurant.pos.menu.MenuService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -20,6 +22,7 @@ import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class OrderService {
 
     private final OrderRepository orderRepository;
@@ -246,5 +249,68 @@ public class OrderService {
         }
         */
         return toOrderResponse(order);
+    }
+
+    @Transactional
+    public OrderItemResponse updateOrderItemStatus(UUID orderId, UUID itemId, OrderItemStatus newStatus) {
+        // Verify order exists
+        Order order = orderRepository.findById(orderId). orElseThrow(() -> new RuntimeException("Order not found: " + orderId));
+
+        // Find the specific item
+        OrderItem item = orderItemRepository.findById(itemId).orElseThrow(() -> new RuntimeException("Item not found: " + itemId));
+
+        // Verify item belongs to this order
+        if(!item.getOrderId().equals(orderId)) {
+            throw new IllegalStateException("Item(" + itemId + ") does not belong to Order: " + orderId);
+        }
+
+        // Validate status transition( Simple validation for now)
+        OrderItemStatus currentStatus = item.getStatus();
+        if(!isValidStatusTransition(currentStatus, newStatus)){
+            throw new IllegalStateException("Invalid status transition from " + currentStatus+ " to " + newStatus);
+        }
+
+        // Update status
+        item.setStatus(newStatus);
+        orderItemRepository.save(item);
+
+        log.info("Updated item {} status: {} -> {}", itemId, currentStatus, newStatus);
+
+        // Get menu item name for the event
+        MenuItem menuItem = menuService.getMenuItemById(item.getMenuItemId());
+
+        // publish status change event
+        ItemStatusChangedEvent event = new ItemStatusChangedEvent(
+                orderId,
+                order.getOrderNumber(),
+                itemId,
+                menuItem.getName(),
+                currentStatus,
+                newStatus
+        );
+
+        eventPublisher.publishItemStatusChangedEvent(event);
+
+        return toOrderItemResponse(item);
+    }
+
+    private boolean isValidStatusTransition(OrderItemStatus currentStatus, OrderItemStatus newStatus) {
+        // Define valid transitions
+        // PENDING -> FIRED -> PREPARING -> READY -> SERVED
+
+        if(currentStatus.equals(newStatus)){ return true; }
+
+        switch(currentStatus){
+            case PENDING:
+                return newStatus.equals(OrderItemStatus.FIRED);
+            case FIRED:
+                return newStatus.equals(OrderItemStatus.PREPARING);
+            case PREPARING:
+                return newStatus.equals(OrderItemStatus.READY);
+            case READY:
+                return newStatus.equals(OrderItemStatus.SERVED);
+            default:
+                return false;
+        }
     }
 }

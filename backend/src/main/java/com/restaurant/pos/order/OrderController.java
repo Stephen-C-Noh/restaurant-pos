@@ -43,4 +43,25 @@ public class OrderController {
     public ResponseEntity<OrderResponse> fireOrder(@PathVariable UUID id) {
         return ResponseEntity.ok(orderService.fireOrder(id));
     }
+
+    @PatchMapping("/{orderId}/items/{itemId}/status")
+    public ResponseEntity<OrderItemResponse> updateItemStatus(
+            @PathVariable UUID orderId,
+            @PathVariable UUID itemId,
+            @RequestBody UpdateItemStatusRequest request){
+        OrderItemResponse updated = orderService.updateOrderItemStatus(orderId, itemId, request.getStatus());
+        return ResponseEntity.ok(updated);
+        /* **Explanation:**
+            - `@PatchMapping` - PATCH is used for partial updates (perfect for status changes)
+            - `/{orderId}/items/{itemId}/status` - RESTful URL structure
+            - Takes both orderId and itemId from URL path
+            - Request body contains the new status
+            - Returns the updated order item
+
+        **Full endpoint URL will be:**
+            PATCH http://localhost:8090/api/orders/{orderId}/items/{itemId}/status
+
+         */
+    }
+
 }
