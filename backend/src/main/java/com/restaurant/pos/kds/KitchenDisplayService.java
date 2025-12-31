@@ -11,22 +11,29 @@ import org.springframework.stereotype.Service;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Kitchen Display System service that consumes order events from Kafka.
+ * Displays orders grouped by kitchen station and tracks status changes.
+ *
+ * Explanation:
+ *
+ * @KafkaListener - Tells Spring to listen to the "order-events" topic
+ * groupId = "kds-consumer-group" - Consumer group ID (allows scaling)
+ * handleOrderFiredEvent() - Called automatically when a message arrives
+ * displayOrderForSection() - Formats and logs items for each station
+ */
 @Service
 @Slf4j
-
-/* Explanation:
-
-@KafkaListener - Tells Spring to listen to the "order-events" topic
-groupId = "kds-consumer-group" - Consumer group ID (allows scaling)
-handleOrderFiredEvent() - Called automatically when a message arrives
-displayOrderForSection() - Formats and logs items for each station
-
- */
-
 public class KitchenDisplayService {
 
-    // Listen to order-fired-events topic
-    @KafkaListener(topics = "order-fired-events", groupId = "kds-consumer-group", containerFactory = "orderFiredKafkaListenerContainerFactory")
+    /**
+     * Handles OrderFiredEvent from Kafka.
+     * Displays order items grouped by kitchen section for station routing.
+     *
+     * @param event The order fired event with items grouped by section
+     */
+    @KafkaListener(topics = "order-fired-events", groupId = "kds-consumer-group",
+            containerFactory = "orderFiredKafkaListenerContainerFactory")
     public void handleOrderFiredEvent(OrderFiredEvent event) {
         log.info("========================================");
         log.info("ORDER FIRED: {}", event.getOrderNumber());
@@ -43,8 +50,14 @@ public class KitchenDisplayService {
         }
     }
 
-    // Listen to item-status-events topic
-    @KafkaListener(topics = "item-status-events", groupId = "kds-consumer-group", containerFactory = "itemStatusKafkaListenerContainerFactory")
+    /**
+     * Handles ItemStatusChangedEvent from Kafka.
+     * Logs status changes for kitchen items (e.g., FIRED -> PREPARING).
+     *
+     * @param event The status change event with old and new status
+     */
+    @KafkaListener(topics = "item-status-events", groupId = "kds-consumer-group",
+            containerFactory = "itemStatusKafkaListenerContainerFactory")
     public void handleItemStatusChanged(ItemStatusChangedEvent event) {
         log.info("========================================");
         log.info("ITEM STATUS CHANGED");
@@ -54,6 +67,13 @@ public class KitchenDisplayService {
         log.info("========================================");
     }
 
+    /**
+     * Displays order items for a specific kitchen section.
+     *
+     * @param orderNumber The order number
+     * @param section The kitchen section (GRILL, COLD, etc.)
+     * @param items List of items for this section
+     */
     private void displayOrderForSection(String orderNumber, KitchenSection section, List<OrderItemEvent> items) {
         log.info("");
         log.info(">>> {} STATION <<<", section);

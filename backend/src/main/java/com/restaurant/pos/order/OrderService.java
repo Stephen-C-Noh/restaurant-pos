@@ -163,6 +163,16 @@ public class OrderService {
         return response;
     }
 
+    /**
+     * Fires an order to the kitchen, updating status and publishing events.
+     * Validates that the order is in DRAFT or SUBMITTED status and has items.
+     * Updates all order items to FIRED status and publishes OrderFiredEvent.
+     *
+     * @param id The order ID to fire
+     * @return OrderResponse with updated status and firedAt timestamp
+     * @throws RuntimeException if order not found
+     * @throws IllegalStateException if order status is invalid or has no items
+     */
     @Transactional
     public OrderResponse fireOrder(UUID id) {
         Order order = orderRepository.findById(id)
@@ -221,36 +231,21 @@ public class OrderService {
         );
 
         eventPublisher.publishOrderFiredEvent(event);
-        /*
-        If we wrote this without streams, it would look like:
-
-        Map<KitchenSection, List<OrderItemEvent>> itemsBySection = new HashMap<>();
-
-        for (OrderItem item : items) {
-            // Get the menu item
-            MenuItem menuItem = menuService.getMenuItemById(item.getMenuItemId());
-            KitchenSection section = menuItem.getKitchenSection();
-
-            // Create the event object
-            OrderItemEvent eventItem = new OrderItemEvent(
-                item.getId(),
-                item.getMenuItemId(),
-                menuItem.getName(),
-                item.getQuantity(),
-                item.getUnitPrice(),
-                item.getSpecialInstructions()
-            );
-
-            // Add to the map
-            if (!itemsBySection.containsKey(section)) {
-                itemsBySection.put(section, new ArrayList<>());
-            }
-            itemsBySection.get(section).add(eventItem);
-        }
-        */
         return toOrderResponse(order);
     }
 
+    /**
+     * Updates the status of an order item with validation.
+     * Validates status transitions (PENDING -> FIRED -> PREPARING -> READY -> SERVED)
+     * and publishes ItemStatusChangedEvent to Kafka.
+     *
+     * @param orderId The order ID
+     * @param itemId The order item ID
+     * @param newStatus The new status to set
+     * @return OrderItemResponse with updated status
+     * @throws RuntimeException if order or item not found
+     * @throws IllegalStateException if item doesn't belong to order or invalid transition
+     */
     @Transactional
     public OrderItemResponse updateOrderItemStatus(UUID orderId, UUID itemId, OrderItemStatus newStatus) {
         // Verify order exists
