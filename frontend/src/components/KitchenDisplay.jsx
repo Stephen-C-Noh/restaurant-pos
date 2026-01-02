@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
+import { Client } from '@stomp/stompjs';
+import SockJS from 'sockjs-client';
 
 function KitchenDisplay() {
     // Create State for orders
@@ -29,12 +31,52 @@ function KitchenDisplay() {
             })
             .catch(error => console.log(error));
     };
-
-    useEffect(() =>{
+    useEffect(() => {
+        // Load orders initially
         fetchOrders();
-        const interval = setInterval(fetchOrders, 5000);
-        return () => clearInterval(interval);
-        }, []);
+}, []);
+
+    // WebSocket Connection
+    useEffect(() =>{
+        // Create WebSocket Client
+        const client = new Client({
+            webSocketFactory:  () => new SockJS('http://localhost:8090/ws'),
+            onConnect: () => {
+                console.log('WebSocket Connected.');
+
+                // Subscribe to order updates
+                client.subscribe('/topic/orders', (message) =>{
+                    console.log('Received Order: ', message.body);
+                    const newOrder = JSON.parse(message.body);
+
+                    // Add or Update order in state
+                    setOrders(prevOrders =>{
+                        const exists = prevOrders.find(o => o.id === newOrder.id);
+                        if (exists){
+                            // Update existing order
+                            return prevOrders.map(o => o.id === newOrder.id ? newOrder : o);
+                        }else{
+                            // Add new order and play notificationSound
+                            setPreviousOrderCount(prev => prev + 1);
+                            if(notificationSound.current){
+                                notificationSound.current.currentTime = 0;
+                                notificationSound.current.play().catch(e => console.log(e));
+                            }
+                            return [...prevOrders, newOrder];
+                        }
+                    });
+                    });
+                },
+            onDisconnect: () => {
+                console.log('WebSocket Disconnected');
+                }
+            });
+
+        client.activate();
+
+        // Clean up on unmount
+        return () => client.deactivate();
+       }, []);
 
     const getOrderAge = (firedAt) => {
         const now = new Date();

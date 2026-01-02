@@ -9,6 +9,7 @@ import com.restaurant.pos.menu.MenuItem;
 import com.restaurant.pos.menu.MenuService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -32,6 +33,7 @@ public class OrderService {
     private final OrderItemRepository orderItemRepository;
     private final MenuService menuService;
     private final EventPublisher eventPublisher;
+    private final SimpMessagingTemplate messagingTemplate;
 
     @Transactional(readOnly = true)
     public List<OrderResponse> getAllOrders() {
@@ -253,6 +255,9 @@ public class OrderService {
         );
 
         eventPublisher.publishOrderFiredEvent(event);
+
+        // publish to WebSocket for real-time UI updates
+        messagingTemplate.convertAndSend("/topic/orders", toOrderResponse(order));
         return toOrderResponse(order);
     }
 
@@ -317,17 +322,12 @@ public class OrderService {
 
         if(currentStatus.equals(newStatus)){ return true; }
 
-        switch(currentStatus){
-            case PENDING:
-                return newStatus.equals(OrderItemStatus.FIRED);
-            case FIRED:
-                return newStatus.equals(OrderItemStatus.PREPARING);
-            case PREPARING:
-                return newStatus.equals(OrderItemStatus.READY);
-            case READY:
-                return newStatus.equals(OrderItemStatus.SERVED);
-            default:
-                return false;
-        }
+        return switch (currentStatus) {
+            case PENDING -> newStatus.equals(OrderItemStatus.FIRED);
+            case FIRED -> newStatus.equals(OrderItemStatus.PREPARING);
+            case PREPARING -> newStatus.equals(OrderItemStatus.READY);
+            case READY -> newStatus.equals(OrderItemStatus.SERVED);
+            default -> false;
+        };
     }
 }
