@@ -15,6 +15,9 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalTime;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -36,6 +39,13 @@ public class OrderService {
                 .map(this::toOrderResponse)
                 .collect(Collectors.toList());
     }
+    @Transactional(readOnly = true)
+    public List<OrderResponse> getActiveOrders() {
+        return orderRepository.findByStatus(OrderStatus.FIRED)
+                .stream()
+                .map(this::toOrderResponse)
+                .collect(Collectors.toList());
+    }
 
     @Transactional(readOnly = true)
     public OrderResponse getOrderById(UUID id) {
@@ -46,9 +56,21 @@ public class OrderService {
 
     @Transactional
     public OrderResponse createOrder(CreateOrderRequest request) {
+        LocalDate today = LocalDate.now();
+        LocalTime currentTime = LocalTime.now();
+        if(currentTime.isBefore(LocalTime.of(8,0))){
+            today = today.minusDays(1);
+        }
+        Instant startOfDay = today
+                .atTime(8, 0)
+                .atZone(ZoneId.systemDefault())
+                .toInstant();
+        long todayCount = orderRepository.countByCreatedAtAfter(startOfDay);
+
+        String orderNumber = String.format("ORD-%03d", todayCount+1);
         // Create order
         Order order = new Order();
-        order.setOrderNumber("ORD-" + System.currentTimeMillis());
+        order.setOrderNumber(orderNumber);
         order.setOrderType(request.getOrderType());
         order.setStatus(OrderStatus.DRAFT);
         order.setTableId(request.getTableId());

@@ -7,6 +7,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.UUID;
+import java.util.function.Predicate;
 
 @RestController
 @RequestMapping("/api/orders")
@@ -63,5 +64,8 @@ public class OrderController {
 
          */
     }
-
+    @GetMapping("/active")
+    public ResponseEntity<List<OrderResponse>> getActiveOrders() {
+        return(ResponseEntity.ok(orderService.getActiveOrders()));
+    }
 }
