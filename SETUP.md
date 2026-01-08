@@ -36,10 +36,10 @@ All services should show "Up" status.
 cd backend
 
 # First time only: package the application
-./mvnw clean package -DskipTests
+./mvn clean package -DskipTests
 
 # Start the Spring Boot application
-./mvnw spring-boot:run
+./mvn spring-boot:run
 ```
 
 **Backend will be available at:** http://localhost:8090
