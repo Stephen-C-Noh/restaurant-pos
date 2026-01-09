@@ -36,6 +36,14 @@ function KitchenDisplay() {
         fetchOrders();
 }, []);
 
+    // Update Order Status(PATCH request)
+    const updateItemStatus = (orderId, itemId, newStatus) => {
+        axios.patch(`http://localhost:8090/api/orders/${orderId}/items/${itemId}/status`,
+            { status: newStatus })  // ✅ Close the config object
+            .then(() => console.log(orderId + "'s " + itemId + "'s Status updated to: " + newStatus))
+            .catch(error => console.log(error));
+    };
+
     // WebSocket Connection
     useEffect(() =>{
         // Create WebSocket Client
@@ -137,8 +145,31 @@ function KitchenDisplay() {
 
                   <div className="space-y-2">
                     {order.items.map(item => (
-                      <div key={item.id} className="flex justify-between">
-                        <span>{item.quantity}x {item.menuItemName}</span>
+                      <div key={item.id} className="flex flex-col space-y-1">
+                          <div className="flex justify-between items-center">
+                            <span>{item.quantity}x {item.menuItemName}</span>
+                              {item.status === 'FIRED' && (
+                                  <button onClick={() => updateItemStatus(order.id, item.id, 'PREPARING')}
+                                  className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-xs font-semibold transition-colors">
+                                      Mark Preparing
+                                  </button>
+                              )}
+                              {item.status === 'PREPARING' && (
+                                  <button onClick={() => updateItemStatus(order.id, item.id, 'READY')}
+                                          className="bg-yellow-500 hover:bg-yellow-600 text-grey-900 px-3 py-1 rounded text-xs font-semibold transition-colors">>
+                                      Mark Ready
+                                  </button>
+                              )}
+                              {item.status === 'READY' && (
+                                  <button onClick={() => updateItemStatus(order.id, item.id, 'SERVED')}
+                                          className="bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded text-xs font-semibold transition-colors">>
+                                      Mark Served
+                                  </button>
+                              )}
+                              {item.status === 'SERVED' && (
+                                  <span className={"text-green-400 text-sm font-semibold"}>✓ Served</span>
+                              )}
+                          </div>
                         {item.specialInstructions && (
                           <span className="text-gray-400 text-sm">{item.specialInstructions}</span>
                         )}

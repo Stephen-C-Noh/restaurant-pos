@@ -313,6 +313,11 @@ public class OrderService {
 
         eventPublisher.publishItemStatusChangedEvent(event);
 
+        // get Updated Order info
+        Order updatedOrder = orderRepository.findById(orderId).orElseThrow(() -> new RuntimeException("Order not found: " + orderId));
+        // WebSocket Broadcast.
+        messagingTemplate.convertAndSend("/topic/orders", toOrderResponse(updatedOrder));
+
         return toOrderItemResponse(item);
     }
 
