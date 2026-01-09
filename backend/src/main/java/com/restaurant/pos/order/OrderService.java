@@ -180,6 +180,7 @@ public class OrderService {
         try {
             MenuItem menuItem = menuService.getMenuItemById(item.getMenuItemId());
             response.setMenuItemName(menuItem.getName());
+            response.setSection(menuItem.getKitchenSection());
         } catch (Exception e) {
             response.setMenuItemName("Unknown Item");
         }

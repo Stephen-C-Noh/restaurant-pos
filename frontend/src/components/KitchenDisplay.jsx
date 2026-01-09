@@ -8,6 +8,7 @@ function KitchenDisplay() {
     const [orders, setOrders] = useState([]);
     const [previousOrderCount, setPreviousOrderCount] = useState(0); // Track Count
     const [isMonitoring, setIsMonitoring] = useState(false);
+    const [selectedSection, setSelectedSection] = useState('ALL');
 
     // Audio for new Orders
     const notificationSound = useRef(new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBTGH0fPTgjMGHm7A7+OZURE'));
@@ -100,6 +101,11 @@ function KitchenDisplay() {
         return 'border-yellow-500';
         };
 
+    const filteredOrders = selectedSection === 'ALL' ? orders
+        : orders.filter(order => {
+            return order.items.some(item =>  item.section === selectedSection);
+        });
+
     return (
     <div className="h-screen flex flex-col bg-gray-900 text-white">
       <header className="bg-gray-800 p-4 shadow-lg">
@@ -126,8 +132,22 @@ function KitchenDisplay() {
       </header>
 
       <div className="flex-1 p-4 overflow-y-auto">
+        <div className="flex gap-2 mb-4">
+            {['ALL', 'GRILL', 'COLD', 'FRYER', 'SAUTE', 'APPETIZER', 'DESSERT'].map(section => (
+               <button
+               key={section}
+               onClick={() => setSelectedSection(section)}
+               className={`px-4 py-2 rounded font-semibold transition-colors ${
+                   selectedSection === section
+                       ? 'bg-blue-600 text-white'
+                       : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+               }`}>
+                   {section}
+               </button>
+            ))}
+        </div>
         <div className="grid grid-cols-3 gap-4">
-          {orders.map(order => {
+            {filteredOrders.map(order => {
               const age = getOrderAge(order.firedAt);
               const borderColor = getBorderColor(age);
 
@@ -144,7 +164,7 @@ function KitchenDisplay() {
                   </div>
 
                   <div className="space-y-2">
-                    {order.items.map(item => (
+                    {order.items.filter(item => selectedSection === 'ALL' || item.section === selectedSection).map(item => (
                       <div key={item.id} className="flex flex-col space-y-1">
                           <div className="flex justify-between items-center">
                             <span>{item.quantity}x {item.menuItemName}</span>
@@ -156,18 +176,18 @@ function KitchenDisplay() {
                               )}
                               {item.status === 'PREPARING' && (
                                   <button onClick={() => updateItemStatus(order.id, item.id, 'READY')}
-                                          className="bg-yellow-500 hover:bg-yellow-600 text-grey-900 px-3 py-1 rounded text-xs font-semibold transition-colors">>
+                                          className="bg-yellow-500 hover:bg-yellow-600 text-gray-900 px-3 py-1 rounded text-xs font-semibold transition-colors">
                                       Mark Ready
                                   </button>
                               )}
                               {item.status === 'READY' && (
                                   <button onClick={() => updateItemStatus(order.id, item.id, 'SERVED')}
-                                          className="bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded text-xs font-semibold transition-colors">>
+                                          className="bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded text-xs font-semibold transition-colors">
                                       Mark Served
                                   </button>
                               )}
                               {item.status === 'SERVED' && (
-                                  <span className={"text-green-400 text-sm font-semibold"}>✓ Served</span>
+                                  <span className="text-green-400 text-sm font-semibold">✓ Served</span>
                               )}
                           </div>
                         {item.specialInstructions && (

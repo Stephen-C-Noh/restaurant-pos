@@ -1,6 +1,8 @@
 package com.restaurant.pos.order;
 
+import com.restaurant.pos.menu.KitchenSection;
 import lombok.Data;
+import org.apache.kafka.shaded.com.google.protobuf.Enum;
 
 import java.math.BigDecimal;
 import java.util.UUID;
@@ -15,4 +17,5 @@ public class OrderItemResponse {
     private BigDecimal subtotal;
     private String specialInstructions;
     private OrderItemStatus status;
+    private KitchenSection section;
 }
