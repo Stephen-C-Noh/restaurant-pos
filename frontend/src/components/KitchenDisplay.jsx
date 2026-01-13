@@ -11,7 +11,44 @@ function KitchenDisplay() {
     const [selectedSection, setSelectedSection] = useState('ALL');
 
     // Audio for new Orders
-    const notificationSound = useRef(new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBTGH0fPTgjMGHm7A7+OZURE'));
+    const notificationSound = useRef(null);
+
+    useEffect(() => {
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+
+        notificationSound.current = {
+            play: () => {
+                // Beep # 1
+                playBeep(audioContext, 0);
+                // Beep # 2
+                playBeep(audioContext, 0.3);
+                // Beep # 3
+                playBeep(audioContext, 0.6);
+                return Promise.resolve();
+            },
+            pause: () => {},
+            currentTime: 0
+        };
+    }, []);
+
+    const playBeep = (audioContext, startDelay) => {
+        const oscillator = audioContext.createOscillator();
+        const gainNode = audioContext.createGain();
+
+        oscillator.connect(gainNode);
+        gainNode.connect(audioContext.destination);
+
+        oscillator.frequency.value = 800;
+        oscillator.type = 'sine';
+
+        const startTime = audioContext.currentTime + startDelay;
+
+        gainNode.gain.setValueAtTime(0.5, startTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, startTime + 0.2);
+
+        oscillator.start(startTime);
+        oscillator.stop(startTime + 0.2);
+    };
 
     const fetchOrders = () => {
         axios.get('http://localhost:8090/api/orders/active')
