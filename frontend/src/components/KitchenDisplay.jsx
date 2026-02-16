@@ -6,7 +6,7 @@ import SockJS from 'sockjs-client';
 function KitchenDisplay() {
     // Create State for orders
     const [orders, setOrders] = useState([]);
-    const [previousOrderCount, setPreviousOrderCount] = useState(0); // Track Count
+    const [, setPreviousOrderCount] = useState(0); // Track Count
     const [isMonitoring, setIsMonitoring] = useState(false);
     const [selectedSection, setSelectedSection] = useState('ALL');
 
