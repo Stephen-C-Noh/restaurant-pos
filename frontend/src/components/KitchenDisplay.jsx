@@ -7,7 +7,6 @@ function KitchenDisplay() {
     // Create State for orders
     const [orders, setOrders] = useState([]);
     const [, setPreviousOrderCount] = useState(0); // Track Count
-    const [isMonitoring, setIsMonitoring] = useState(false);
     const [selectedSection, setSelectedSection] = useState('ALL');
 
     // Audio for new Orders
@@ -15,6 +14,19 @@ function KitchenDisplay() {
 
     useEffect(() => {
         const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+
+        const resumeAudio = () => {
+            if (audioContext.state === 'suspended') {
+                audioContext.resume();
+            }
+            window.removeEventListener('click', resumeAudio);
+            window.removeEventListener('keydown', resumeAudio);
+            window.removeEventListener('touchstart', resumeAudio);
+        };
+
+        window.addEventListener('click', resumeAudio);
+        window.addEventListener('keydown', resumeAudio);
+        window.addEventListener('touchstart', resumeAudio);
 
         notificationSound.current = {
             play: () => {
@@ -28,6 +40,12 @@ function KitchenDisplay() {
             },
             pause: () => {},
             currentTime: 0
+        };
+
+        return () => {
+            window.removeEventListener('click', resumeAudio);
+            window.removeEventListener('keydown', resumeAudio);
+            window.removeEventListener('touchstart', resumeAudio);
         };
     }, []);
 
@@ -148,23 +166,6 @@ function KitchenDisplay() {
       <header className="bg-gray-800 p-4 shadow-lg">
         <div className="flex justify-between items-center">
           <h1 className="text-2xl font-bold">Kitchen Display System</h1>
-          {!isMonitoring && (
-            <button
-              onClick={() => {
-                setIsMonitoring(true);
-                notificationSound.current.play().then(() => {
-                  notificationSound.current.pause();
-                  notificationSound.current.currentTime = 0;
-                });
-              }}
-              className="bg-green-600 hover:bg-green-700 px-4 py-2 rounded font-semibold"
-            >
-              🔊 Enable Sound Alerts
-            </button>
-          )}
-          {isMonitoring && (
-            <span className="text-green-400">✓ Sound Alerts Active</span>
-          )}
         </div>
       </header>
 
