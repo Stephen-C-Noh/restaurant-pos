@@ -1,5 +1,6 @@
 package com.restaurant.pos.order;
 
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -7,7 +8,6 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.UUID;
-import java.util.function.Predicate;
 
 @RestController
 @RequestMapping("/api/orders")
@@ -27,7 +27,7 @@ public class OrderController {
     }
 
     @PostMapping
-    public ResponseEntity<OrderResponse> createOrder(@RequestBody CreateOrderRequest request) {
+    public ResponseEntity<OrderResponse> createOrder(@Valid @RequestBody CreateOrderRequest request) {
         OrderResponse created = orderService.createOrder(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
     }
@@ -49,7 +49,7 @@ public class OrderController {
     public ResponseEntity<OrderItemResponse> updateItemStatus(
             @PathVariable UUID orderId,
             @PathVariable UUID itemId,
-            @RequestBody UpdateItemStatusRequest request){
+            @Valid @RequestBody UpdateItemStatusRequest request){
         OrderItemResponse updated = orderService.updateOrderItemStatus(orderId, itemId, request.getStatus());
         return ResponseEntity.ok(updated);
         /* **Explanation:**

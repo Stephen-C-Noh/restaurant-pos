@@ -1,5 +1,6 @@
 package com.restaurant.pos.order;
 
+import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -16,5 +17,6 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 public class UpdateItemStatusRequest {
+    @NotNull(message = "status is required")
     private OrderItemStatus status;
 }

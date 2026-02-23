@@ -1,5 +1,6 @@
 package com.restaurant.pos.menu;
 
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -32,7 +33,7 @@ public class MenuController {
     }
 
     @PostMapping("/items")
-    public ResponseEntity<MenuItem> createMenuItem(@RequestBody MenuItem menuItem) {
+    public ResponseEntity<MenuItem> createMenuItem(@Valid @RequestBody MenuItem menuItem) {
         MenuItem created = menuService.createMenuItem(menuItem);
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
     }
@@ -40,7 +41,7 @@ public class MenuController {
     @PutMapping("/items/{id}")
     public ResponseEntity<MenuItem> updateMenuItem(
             @PathVariable UUID id,
-            @RequestBody MenuItem menuItem) {
+            @Valid @RequestBody MenuItem menuItem) {
         MenuItem updated = menuService.updateMenuItem(id, menuItem);
         return ResponseEntity.ok(updated);
     }
