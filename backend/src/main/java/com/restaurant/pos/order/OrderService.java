@@ -1,5 +1,7 @@
 package com.restaurant.pos.order;
 
+import com.restaurant.pos.common.BusinessRuleException;
+import com.restaurant.pos.common.ResourceNotFoundException;
 import com.restaurant.pos.events.EventPublisher;
 import com.restaurant.pos.events.ItemStatusChangedEvent;
 import com.restaurant.pos.events.OrderFiredEvent;
@@ -52,7 +54,7 @@ public class OrderService {
     @Transactional(readOnly = true)
     public OrderResponse getOrderById(UUID id) {
         Order order = orderRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Order not found: " + id));
+                .orElseThrow(() -> new ResourceNotFoundException("Order not found: " + id));
         return toOrderResponse(order);
     }
 
@@ -125,14 +127,14 @@ public class OrderService {
 
         // Fetch fresh copy with timestamps
         Order savedOrder = orderRepository.findById(order.getId())
-                .orElseThrow(() -> new RuntimeException("Order not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Order not found"));
         return toOrderResponse(savedOrder);
     }
 
     @Transactional
     public OrderResponse updateOrderStatus(UUID id, OrderStatus newStatus) {
         Order order = orderRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Order not found: " + id));
+                .orElseThrow(() -> new ResourceNotFoundException("Order not found: " + id));
         order.setStatus(newStatus);
         orderRepository.save(order);
         return toOrderResponse(order);
@@ -177,13 +179,9 @@ public class OrderService {
         response.setStatus(item.getStatus());
 
         // Get menu item name
-        try {
-            MenuItem menuItem = menuService.getMenuItemById(item.getMenuItemId());
-            response.setMenuItemName(menuItem.getName());
-            response.setSection(menuItem.getKitchenSection());
-        } catch (Exception e) {
-            response.setMenuItemName("Unknown Item");
-        }
+        MenuItem menuItem = menuService.getMenuItemById(item.getMenuItemId());
+        response.setMenuItemName(menuItem.getName());
+        response.setSection(menuItem.getKitchenSection());
 
         return response;
     }
@@ -201,16 +199,16 @@ public class OrderService {
     @Transactional
     public OrderResponse fireOrder(UUID id) {
         Order order = orderRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Order not found: " + id));
+                .orElseThrow(() -> new ResourceNotFoundException("Order not found: " + id));
 
         OrderStatus orderStatus = order.getStatus();
         if(!orderStatus.equals(OrderStatus.DRAFT) && !orderStatus.equals(OrderStatus.SUBMITTED)) {
-            throw new IllegalStateException("An order should only be fired when it's in DRAFT or SUBMITTED Current Status: " + orderStatus);
+            throw new BusinessRuleException("An order should only be fired when it's in DRAFT or SUBMITTED Current Status: " + orderStatus);
         }
 
         List<OrderItem> items = orderItemRepository.findByOrderId(order.getId());
         if (items.isEmpty()) {
-            throw new IllegalStateException("Cannot fire an empty order");
+            throw new BusinessRuleException("Cannot fire an empty order");
         }
 
         order.setStatus(OrderStatus.FIRED);
@@ -277,20 +275,20 @@ public class OrderService {
     @Transactional
     public OrderItemResponse updateOrderItemStatus(UUID orderId, UUID itemId, OrderItemStatus newStatus) {
         // Verify order exists
-        Order order = orderRepository.findById(orderId). orElseThrow(() -> new RuntimeException("Order not found: " + orderId));
+        Order order = orderRepository.findById(orderId).orElseThrow(() -> new ResourceNotFoundException("Order not found: " + orderId));
 
         // Find the specific item
-        OrderItem item = orderItemRepository.findById(itemId).orElseThrow(() -> new RuntimeException("Item not found: " + itemId));
+        OrderItem item = orderItemRepository.findById(itemId).orElseThrow(() -> new ResourceNotFoundException("Item not found: " + itemId));
 
         // Verify item belongs to this order
         if(!item.getOrderId().equals(orderId)) {
-            throw new IllegalStateException("Item(" + itemId + ") does not belong to Order: " + orderId);
+            throw new BusinessRuleException("Item(" + itemId + ") does not belong to Order: " + orderId);
         }
 
         // Validate status transition( Simple validation for now)
         OrderItemStatus currentStatus = item.getStatus();
         if(!isValidStatusTransition(currentStatus, newStatus)){
-            throw new IllegalStateException("Invalid status transition from " + currentStatus+ " to " + newStatus);
+            throw new BusinessRuleException("Invalid status transition from " + currentStatus + " to " + newStatus);
         }
 
         // Update status
@@ -315,7 +313,7 @@ public class OrderService {
         eventPublisher.publishItemStatusChangedEvent(event);
 
         // get Updated Order info
-        Order updatedOrder = orderRepository.findById(orderId).orElseThrow(() -> new RuntimeException("Order not found: " + orderId));
+        Order updatedOrder = orderRepository.findById(orderId).orElseThrow(() -> new ResourceNotFoundException("Order not found: " + orderId));
         // WebSocket Broadcast.
         messagingTemplate.convertAndSend("/topic/orders", toOrderResponse(updatedOrder));
 

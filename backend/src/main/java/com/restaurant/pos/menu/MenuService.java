@@ -1,5 +1,6 @@
 package com.restaurant.pos.menu;
 
+import com.restaurant.pos.common.ResourceNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -28,7 +29,7 @@ public class MenuService {
     @Transactional(readOnly = true)
     public MenuItem getMenuItemById(UUID id) {
         return menuItemRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Menu item not found: " + id));
+                .orElseThrow(() -> new ResourceNotFoundException("Menu item not found: " + id));
     }
 
     @Transactional
