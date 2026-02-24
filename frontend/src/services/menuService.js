@@ -1,9 +1,9 @@
-import axios from 'axios';
+import api from './api';
 
 export function fetchActiveMenuItems() {
-    return axios.get('/api/menu/items/active').then(res => res.data);
+    return api.get('/api/menu/items/active').then(res => res.data);
 }
 
 export function fetchCategories() {
-    return axios.get('/api/menu/categories').then(res => res.data);
+    return api.get('/api/menu/categories').then(res => res.data);
 }
