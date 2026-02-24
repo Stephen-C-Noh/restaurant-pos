@@ -1,5 +1,5 @@
-import axios from 'axios';
+import api from './api';
 
 export function fetchDashboardStats() {
-    return axios.get('/api/admin/stats').then(res => res.data);
+    return api.get('/api/admin/stats').then(res => res.data);
 }

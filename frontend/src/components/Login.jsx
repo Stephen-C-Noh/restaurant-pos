@@ -1,63 +1,56 @@
-import { useState } from 'react'
+import { useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
+import PinPad from './PinPad'
+import { loginWithPin } from '../services/authService'
+import useAuthStore from '../stores/useAuthStore'
 
 function Login() {
-  const [username, setUsername] = useState('')
-  const [password, setPassword] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState(null)
   const navigate = useNavigate()
+  const login = useAuthStore((state) => state.login)
 
-  const handleLogin = (e) => {
-    e.preventDefault()
-    // TODO: Implement actual authentication
-    console.log('Login attempt:', { username, password })
-    navigate('/pos')
-  }
+  const handleSubmit = useCallback(async (pin) => {
+    setLoading(true)
+    setError(null)
+    try {
+      const data = await loginWithPin(pin)
+      login(data.token, {
+        id: data.userId,
+        username: data.username,
+        fullName: data.fullName,
+        role: data.role,
+      })
+      if (data.role === 'SERVER') {
+        navigate('/pos')
+      } else {
+        navigate('/admin')
+      }
+    } catch (err) {
+      const msg = err.response?.data?.message || 'Invalid PIN. Please try again.'
+      setError(msg)
+    } finally {
+      setLoading(false)
+    }
+  }, [login, navigate])
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100">
-      <div className="card max-w-md w-full">
-        <h1 className="text-3xl font-bold text-center mb-6 text-gray-800">
+    <div className="min-h-screen flex items-center justify-center bg-gray-100 dark:bg-gray-900">
+      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-10 w-full max-w-sm">
+        <h1 className="text-3xl font-bold text-center mb-2 text-gray-800 dark:text-gray-100">
           Restaurant POS
         </h1>
-        
-        <form onSubmit={handleLogin} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Username
-            </label>
-            <input
-              type="text"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-              placeholder="Enter username"
-              required
-            />
-          </div>
+        <p className="text-center text-gray-500 dark:text-gray-400 text-sm mb-8">
+          Enter your PIN to sign in
+        </p>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Password
-            </label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-              placeholder="Enter password"
-              required
-            />
-          </div>
+        <PinPad onSubmit={handleSubmit} loading={loading} error={error} />
 
-          <button type="submit" className="btn-primary w-full">
-            Sign In
-          </button>
-        </form>
-
-        <div className="mt-6 text-center text-sm text-gray-600">
-          <p>Demo Credentials:</p>
-          <p className="font-mono">admin / admin123</p>
-        </div>
+        {loading && (
+          <p className="text-center text-gray-500 dark:text-gray-400 text-sm mt-6">
+            Signing in...
+          </p>
+        )}
       </div>
     </div>
   )
