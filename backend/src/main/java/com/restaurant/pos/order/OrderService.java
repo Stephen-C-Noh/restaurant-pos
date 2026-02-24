@@ -21,6 +21,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -71,7 +72,8 @@ public class OrderService {
                 .toInstant();
         long todayCount = orderRepository.countByCreatedAtAfter(startOfDay);
 
-        String orderNumber = String.format("ORD-%03d", todayCount+1);
+        String dateStamp = today.format(DateTimeFormatter.ofPattern("MMdd"));
+        String orderNumber = String.format("ORD-%s-%03d", dateStamp, todayCount + 1);
         // Create order
         Order order = new Order();
         order.setOrderNumber(orderNumber);
