@@ -23,13 +23,14 @@ public interface OrderRepository extends JpaRepository<Order, UUID> {
     long countByStatusIn(Collection<OrderStatus> statuses);
 
     @Query(nativeQuery = true, value = """
-        SELECT EXTRACT(HOUR FROM created_at) AS hour, COUNT(*) AS order_count
+        SELECT EXTRACT(HOUR FROM (created_at AT TIME ZONE 'UTC') AT TIME ZONE :timezone) AS hour, COUNT(*) AS order_count
         FROM orders
         WHERE created_at >= :start AND created_at < :end
           AND status NOT IN ('DRAFT','CANCELLED')
         GROUP BY hour ORDER BY hour
         """)
-    List<Object[]> getOrdersPerHour(@Param("start") Instant start, @Param("end") Instant end);
+    List<Object[]> getOrdersPerHour(@Param("start") Instant start, @Param("end") Instant end,
+                                    @Param("timezone") String timezone);
 
     @Query(nativeQuery = true, value = """
         SELECT COALESCE(SUM(total), 0)        AS revenue,

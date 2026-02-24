@@ -51,7 +51,7 @@ public class AdminStatsService {
                 List.of(OrderStatus.FIRED, OrderStatus.PREPARING, OrderStatus.READY));
 
         // Orders per hour — fill in zeros for 8 AM–11 PM
-        List<Object[]> hourlyRaw = orderRepository.getOrdersPerHour(startOfDay, endOfDay);
+        List<Object[]> hourlyRaw = orderRepository.getOrdersPerHour(startOfDay, endOfDay, zone.getId());
         Map<Integer, Long> hourlyMap = hourlyRaw.stream()
                 .collect(Collectors.toMap(
                         row -> ((Number) row[0]).intValue(),
