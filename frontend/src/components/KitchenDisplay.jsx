@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import axios from 'axios';
+import api from '../services/api';
 import { Client } from '@stomp/stompjs';
 import SockJS from 'sockjs-client';
 
@@ -69,7 +69,7 @@ function KitchenDisplay() {
     };
 
     const fetchOrders = () => {
-        axios.get('http://localhost:8090/api/orders/active')
+        api.get('http://localhost:8090/api/orders/active')
             .then(response => {
                 const newOrders = response.data;
 
@@ -94,7 +94,7 @@ function KitchenDisplay() {
 
     // Update Order Status(PATCH request)
     const updateItemStatus = (orderId, itemId, newStatus) => {
-        axios.patch(`http://localhost:8090/api/orders/${orderId}/items/${itemId}/status`,
+        api.patch(`http://localhost:8090/api/orders/${orderId}/items/${itemId}/status`,
             { status: newStatus })  // ✅ Close the config object
             .then(() => console.log(orderId + "'s " + itemId + "'s Status updated to: " + newStatus))
             .catch(error => console.log(error));
