@@ -1,8 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import axios from 'axios';
+import api from '../api';
 import { fetchActiveMenuItems, fetchCategories } from '../menuService';
 
-vi.mock('axios');
+vi.mock('../api', () => ({
+    default: {
+        get: vi.fn(),
+    },
+}));
 
 describe('menuService', () => {
     beforeEach(() => {
@@ -12,16 +16,16 @@ describe('menuService', () => {
     describe('fetchActiveMenuItems', () => {
         it('should call GET /api/menu/items/active and return data', async () => {
             const mockItems = [{ id: '1', name: 'Burger', basePrice: 12.99 }];
-            axios.get.mockResolvedValueOnce({ data: mockItems });
+            api.get.mockResolvedValueOnce({ data: mockItems });
 
             const result = await fetchActiveMenuItems();
 
-            expect(axios.get).toHaveBeenCalledWith('/api/menu/items/active');
+            expect(api.get).toHaveBeenCalledWith('/api/menu/items/active');
             expect(result).toEqual(mockItems);
         });
 
         it('should propagate errors', async () => {
-            axios.get.mockRejectedValueOnce(new Error('Network Error'));
+            api.get.mockRejectedValueOnce(new Error('Network Error'));
 
             await expect(fetchActiveMenuItems()).rejects.toThrow('Network Error');
         });
@@ -30,11 +34,11 @@ describe('menuService', () => {
     describe('fetchCategories', () => {
         it('should call GET /api/menu/categories and return data', async () => {
             const mockCategories = [{ id: '1', name: 'Food' }];
-            axios.get.mockResolvedValueOnce({ data: mockCategories });
+            api.get.mockResolvedValueOnce({ data: mockCategories });
 
             const result = await fetchCategories();
 
-            expect(axios.get).toHaveBeenCalledWith('/api/menu/categories');
+            expect(api.get).toHaveBeenCalledWith('/api/menu/categories');
             expect(result).toEqual(mockCategories);
         });
     });

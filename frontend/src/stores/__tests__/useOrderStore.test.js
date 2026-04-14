@@ -151,6 +151,7 @@ describe('useOrderStore', () => {
             expect(state.error).toBeNull();
             expect(createOrder).toHaveBeenCalledWith({
                 orderType: 'DINE_IN',
+                tableId: null,
                 notes: null,
                 items: [{ menuItemId: 'item-1', quantity: 1, specialInstructions: null }],
             });

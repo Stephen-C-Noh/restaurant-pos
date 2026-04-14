@@ -194,7 +194,7 @@ function KitchenDisplay() {
                   <div className="flex justify-between items-start mb-4">
                     <div>
                       <h3 className="text-xl font-bold">{order.orderNumber}</h3>
-                      <p className="text-gray-400">Table {order.tableId || 'N/A'} • {age} min</p>
+                      <p className="text-gray-400">{order.tableNumber ? `Table ${order.tableNumber}` : 'Takeout'} • {age} min</p>
                     </div>
                     <span className="bg-yellow-500 text-gray-900 px-3 py-1 rounded-full text-sm font-semibold">
                       FIRED

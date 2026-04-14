@@ -3,8 +3,8 @@ import useOrderStore from '../../stores/useOrderStore';
 
 const AUTO_RESET_SECONDS = 5;
 
-export default function OrderConfirmation() {
-    const { lastOrder, resetOrder } = useOrderStore();
+export default function OrderConfirmation({ onReset }) {
+    const { lastOrder } = useOrderStore();
     const [countdown, setCountdown] = useState(AUTO_RESET_SECONDS);
 
     useEffect(() => {
@@ -15,7 +15,7 @@ export default function OrderConfirmation() {
             setCountdown((prev) => {
                 if (prev <= 1) {
                     clearInterval(timer);
-                    resetOrder();
+                    onReset();
                     return 0;
                 }
                 return prev - 1;
@@ -23,7 +23,7 @@ export default function OrderConfirmation() {
         }, 1000);
 
         return () => clearInterval(timer);
-    }, [lastOrder, resetOrder]);
+    }, [lastOrder, onReset]);
 
     if (!lastOrder) return null;
 
@@ -70,7 +70,7 @@ export default function OrderConfirmation() {
                 </div>
 
                 <button
-                    onClick={resetOrder}
+                    onClick={onReset}
                     className="btn-primary w-full"
                     aria-label="Start a new order"
                 >
