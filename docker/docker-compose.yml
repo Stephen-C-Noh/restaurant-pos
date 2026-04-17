@@ -91,6 +91,45 @@ services:
     networks:
       - pos-network
 
+  # Spring Boot backend
+  backend:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    container_name: pos-backend
+    ports:
+      - "8090:8090"
+    environment:
+      # Override the hardcoded localhost URLs in application.yml via the
+      # Spring relaxed-binding env var convention.
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/restaurant_pos
+      SPRING_DATASOURCE_USERNAME: posuser
+      SPRING_DATASOURCE_PASSWORD: pospass123
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9093
+      # Include the waitlist Next.js dev server origin so its fetch calls pass CORS.
+      APP_CORS_ALLOWED_ORIGINS: http://localhost:5173,http://localhost:3000
+      JWT_SECRET: ${JWT_SECRET:-change-me-in-production-at-least-256-bits-long-placeholder-value}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    networks:
+      - pos-network
+
+  # POS frontend (Vite React served via nginx) — includes the Kitchen Display.
+  frontend:
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile
+    container_name: pos-frontend
+    ports:
+      - "5173:80"
+    depends_on:
+      - backend
+    networks:
+      - pos-network
+
 volumes:
   postgres-data:
 

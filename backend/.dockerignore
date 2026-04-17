@@ -1,0 +1,6 @@
+target/
+.mvn/wrapper/MavenWrapperDownloader.java
+*.log
+.idea/
+.vscode/
+.git/
