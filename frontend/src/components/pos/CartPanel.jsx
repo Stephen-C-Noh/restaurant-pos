@@ -1,7 +1,7 @@
 import OrderTypeSelector from './OrderTypeSelector';
 import useOrderStore from '../../stores/useOrderStore';
 
-export default function CartPanel() {
+export default function CartPanel({ selectedTable }) {
     const {
         cartItems,
         orderType,
@@ -34,6 +34,12 @@ export default function CartPanel() {
                     </span>
                 )}
             </div>
+
+            {selectedTable && (
+                <div className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded mb-3 inline-block">
+                    Table {selectedTable.tableNumber} &middot; {selectedTable.zone}
+                </div>
+            )}
 
             <OrderTypeSelector selected={orderType} onSelect={setOrderType} />
 
@@ -152,7 +158,7 @@ export default function CartPanel() {
             </div>
 
             <button
-                onClick={submitOrder}
+                onClick={() => submitOrder(selectedTable?.id ?? null)}
                 disabled={cartItems.length === 0 || submitting}
                 className="btn-primary w-full mt-4 disabled:opacity-50 disabled:cursor-not-allowed"
                 aria-label="Send order to kitchen"

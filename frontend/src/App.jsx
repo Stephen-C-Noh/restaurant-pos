@@ -2,6 +2,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import POSTerminal from './components/POSTerminal'
 import KitchenDisplay from './components/KitchenDisplay'
 import AdminDashboard from './components/AdminDashboard'
+import Tables from './components/Tables'
 import Login from './components/Login'
 import useAuthStore from './stores/useAuthStore'
 
@@ -37,6 +38,14 @@ function App() {
             }
           />
           <Route path="/kds" element={<KitchenDisplay />} />
+          <Route
+            path="/tables"
+            element={
+              <ProtectedRoute allowedRoles={['SERVER','ADMIN','MANAGER']}>
+                <Tables />
+              </ProtectedRoute>
+            }
+          />
           <Route
             path="/admin"
             element={
