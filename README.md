@@ -2,6 +2,17 @@
 
 A full-featured restaurant Point of Sale system built with Spring Boot and React, featuring event-driven architecture, offline-first capabilities, and real-time kitchen display integration.
 
+## 📸 Screenshots
+
+| | |
+| --- | --- |
+| ![Order terminal](docs/images/restaurant-pos-order-terminal.jpg) | ![Order cart](docs/images/restaurant-pos-order-cart-filled.jpg) |
+| POS order terminal for building a dine-in, takeout, or delivery order | Cart with items added and subtotal / tax / total calculated live |
+| ![Order confirmation](docs/images/restaurant-pos-order-confirmation.jpg) | ![Kitchen display](docs/images/restaurant-pos-kitchen-display.jpg) |
+| Confirmation after an order is sent to the kitchen through the Kafka event pipeline | Kitchen Display System, order tickets updated live over WebSockets |
+| ![Admin dashboard](docs/images/restaurant-pos-admin-dashboard.jpg) | |
+| Admin dashboard with daily revenue, order volume, and recent order history | |
+
 ## 🚀 Features
 
 - **Order Management**: Complete order lifecycle from creation to completion
