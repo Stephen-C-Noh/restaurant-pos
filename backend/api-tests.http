@@ -11,3 +11,17 @@ Content-Type: application/json
   "serverId": "123e4567-e89b-12d3-a456-426614174001",
   "items": []
 }
+
+### Cash payment (needs a FIRED/PREPARING/READY order and a SERVER/MANAGER/ADMIN token from /api/auth)
+# Reuse the same Idempotency-Key when retrying the same attempt; a new attempt gets a new UUID.
+POST http://localhost:8090/api/orders/{{orderId}}/payments
+Authorization: Bearer {{token}}
+Idempotency-Key: 6f1c2b8e-0d4a-4c1e-9a77-2b5d0e9c1a01
+Content-Type: application/json
+
+{
+  "method": "CASH",
+  "amount": 21.00,
+  "tip": 3.00,
+  "tendered": 30.00
+}
