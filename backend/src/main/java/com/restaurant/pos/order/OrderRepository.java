@@ -1,6 +1,8 @@
 package com.restaurant.pos.order;
 
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -21,6 +23,12 @@ public interface OrderRepository extends JpaRepository<Order, UUID> {
     List<Order> findTop10ByOrderByCreatedAtDesc();
 
     long countByStatusIn(Collection<OrderStatus> statuses);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT o FROM Order o WHERE o.id = :id")
+    Optional<Order> findByIdForUpdate(@Param("id") UUID id);
+
+    boolean existsByTableIdAndIdNotAndStatusNotIn(UUID tableId, UUID id, Collection<OrderStatus> statuses);
 
     @Query(nativeQuery = true, value = """
         SELECT EXTRACT(HOUR FROM (created_at AT TIME ZONE 'UTC') AT TIME ZONE :timezone) AS hour, COUNT(*) AS order_count

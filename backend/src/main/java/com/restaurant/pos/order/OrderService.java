@@ -4,6 +4,7 @@ import com.restaurant.pos.common.BusinessRuleException;
 import com.restaurant.pos.common.ResourceNotFoundException;
 import com.restaurant.pos.events.EventPublisher;
 import com.restaurant.pos.table.TableRepository;
+import com.restaurant.pos.table.TableStatus;
 import com.restaurant.pos.events.ItemStatusChangedEvent;
 import com.restaurant.pos.events.OrderFiredEvent;
 import com.restaurant.pos.events.OrderItemEvent;
@@ -25,6 +26,7 @@ import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -32,6 +34,8 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 @Slf4j
 public class OrderService {
+
+    private static final Set<OrderStatus> TERMINAL = Set.of(OrderStatus.COMPLETED, OrderStatus.CANCELLED);
 
     private final OrderRepository orderRepository;
     private final OrderItemRepository orderItemRepository;
@@ -142,6 +146,31 @@ public class OrderService {
         order.setStatus(newStatus);
         orderRepository.save(order);
         return toOrderResponse(order);
+    }
+
+    /**
+     * Moves an order to a terminal status (COMPLETED or CANCELLED) and applies the table rule (§5.3):
+     * a dine-in table goes OCCUPIED -> CLEANING once no other open order remains on it.
+     * Callers own the transaction and the order row lock.
+     */
+    public void close(Order order, OrderStatus terminal) {
+        order.setStatus(terminal);
+        if (terminal == OrderStatus.COMPLETED) {
+            order.setCompletedAt(Instant.now());
+        }
+        orderRepository.save(order);
+
+        UUID tableId = order.getTableId();
+        if (order.getOrderType() != OrderType.DINE_IN || tableId == null
+                || orderRepository.existsByTableIdAndIdNotAndStatusNotIn(tableId, order.getId(), TERMINAL)) {
+            return;
+        }
+        tableRepository.findById(tableId)
+                .filter(t -> t.getStatus() == TableStatus.OCCUPIED)
+                .ifPresent(t -> {
+                    t.setStatus(TableStatus.CLEANING);
+                    t.setCurrentServerId(null);
+                });
     }
 
     // Helper method to convert Order to OrderResponse with items
