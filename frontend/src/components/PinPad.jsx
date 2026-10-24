@@ -74,7 +74,7 @@ function PinPad({ onSubmit, loading, error }) {
                          border border-gray-200 dark:border-gray-600
                          flex items-center justify-center text-2xl font-semibold
                          hover:bg-gray-50 dark:hover:bg-gray-700 active:scale-95 transition-all
-                         shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                         shadow-xs disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {key}
             </button>

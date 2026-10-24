@@ -46,14 +46,14 @@ function LoadingSkeleton() {
         <div className="animate-pulse space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
                 {Array.from({ length: 5 }).map((_, i) => (
-                    <div key={i} className="card h-24 bg-gray-200 dark:bg-gray-700 rounded" />
+                    <div key={i} className="card h-24 bg-gray-200 dark:bg-gray-700 rounded-sm" />
                 ))}
             </div>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <div className="card h-64 bg-gray-200 dark:bg-gray-700 rounded" />
-                <div className="card h-64 bg-gray-200 dark:bg-gray-700 rounded" />
+                <div className="card h-64 bg-gray-200 dark:bg-gray-700 rounded-sm" />
+                <div className="card h-64 bg-gray-200 dark:bg-gray-700 rounded-sm" />
             </div>
-            <div className="card h-48 bg-gray-200 dark:bg-gray-700 rounded" />
+            <div className="card h-48 bg-gray-200 dark:bg-gray-700 rounded-sm" />
         </div>
     );
 }
@@ -85,13 +85,13 @@ function AdminDashboard() {
                 <div className="flex items-center gap-3">
                     <button
                         onClick={() => setDark(d => !d)}
-                        className="text-sm bg-gray-700 hover:bg-gray-600 px-3 py-1 rounded"
+                        className="text-sm bg-gray-700 hover:bg-gray-600 px-3 py-1 rounded-sm"
                     >
                         {dark ? '☀ Light' : '☾ Dark'}
                     </button>
                     <button
                         onClick={retry}
-                        className="text-sm bg-gray-700 hover:bg-gray-600 px-3 py-1 rounded"
+                        className="text-sm bg-gray-700 hover:bg-gray-600 px-3 py-1 rounded-sm"
                     >
                         Refresh
                     </button>
@@ -102,7 +102,7 @@ function AdminDashboard() {
                 {loading && <LoadingSkeleton />}
 
                 {error && !loading && (
-                    <div className="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 rounded p-4 mb-6">
+                    <div className="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 rounded-sm p-4 mb-6">
                         {error}
                         <button onClick={retry} className="ml-4 underline text-sm">Retry</button>
                     </div>
@@ -179,7 +179,7 @@ function AdminDashboard() {
                                                         {order.orderType?.replace('_', ' ').toLowerCase()}
                                                     </td>
                                                     <td className="px-4 py-2">
-                                                        <span className={`px-2 py-1 rounded text-xs font-medium ${STATUS_COLORS[order.status] ?? STATUS_COLORS.DRAFT}`}>
+                                                        <span className={`px-2 py-1 rounded-sm text-xs font-medium ${STATUS_COLORS[order.status] ?? STATUS_COLORS.DRAFT}`}>
                                                             {order.status}
                                                         </span>
                                                     </td>

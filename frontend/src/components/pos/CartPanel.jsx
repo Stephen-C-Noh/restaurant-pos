@@ -36,7 +36,7 @@ export default function CartPanel({ selectedTable }) {
             </div>
 
             {selectedTable && (
-                <div className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded mb-3 inline-block">
+                <div className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-sm mb-3 inline-block">
                     Table {selectedTable.tableNumber} &middot; {selectedTable.zone}
                 </div>
             )}
@@ -46,7 +46,7 @@ export default function CartPanel({ selectedTable }) {
             {error && (
                 <div
                     role="alert"
-                    className="bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded mb-3 flex justify-between items-start text-sm"
+                    className="bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded-sm mb-3 flex justify-between items-start text-sm"
                 >
                     <span>{error}</span>
                     <button
@@ -98,7 +98,7 @@ export default function CartPanel({ selectedTable }) {
                                                     item.quantity - 1
                                                 )
                                             }
-                                            className="w-7 h-7 rounded bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold text-sm"
+                                            className="w-7 h-7 rounded-sm bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold text-sm"
                                             aria-label={`Decrease ${item.menuItem.name} quantity`}
                                         >
                                             -
@@ -113,7 +113,7 @@ export default function CartPanel({ selectedTable }) {
                                                     item.quantity + 1
                                                 )
                                             }
-                                            className="w-7 h-7 rounded bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold text-sm"
+                                            className="w-7 h-7 rounded-sm bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold text-sm"
                                             aria-label={`Increase ${item.menuItem.name} quantity`}
                                         >
                                             +
@@ -134,7 +134,7 @@ export default function CartPanel({ selectedTable }) {
                                             e.target.value
                                         )
                                     }
-                                    className="w-full mt-2 text-xs border rounded px-2 py-1 text-gray-700 placeholder-gray-400"
+                                    className="w-full mt-2 text-xs border rounded-sm px-2 py-1 text-gray-700 placeholder-gray-400"
                                 />
                             </div>
                         ))}

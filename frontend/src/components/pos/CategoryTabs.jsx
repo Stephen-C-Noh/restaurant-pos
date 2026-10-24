@@ -7,7 +7,7 @@ export default function CategoryTabs({ sections, selectedSection, onSelect }) {
                 <button
                     key={section}
                     onClick={() => onSelect(section)}
-                    className={`px-4 py-2 rounded font-semibold transition-colors text-sm ${
+                    className={`px-4 py-2 rounded-sm font-semibold transition-colors text-sm ${
                         selectedSection === section
                             ? 'bg-blue-600 text-white'
                             : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
