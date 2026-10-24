@@ -112,6 +112,15 @@ cd backend
 ./mvnw test
 ```
 
+`./mvnw test` runs only fast unit tests (`*Test`) and needs no Docker.
+
+### Backend Integration Tests
+Integration tests (`*IT`) boot the app against a throwaway Postgres (Testcontainers) and an embedded Kafka. They need Docker running (the `docker compose` stack does not need to be up).
+```bash
+cd backend
+./mvnw verify -Pit
+```
+
 ### Frontend Tests
 ```bash
 cd frontend
