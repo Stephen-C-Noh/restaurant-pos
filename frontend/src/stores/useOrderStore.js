@@ -85,13 +85,14 @@ const useOrderStore = create((set, get) => ({
     getItemCount: () =>
         get().cartItems.reduce((sum, item) => sum + item.quantity, 0),
 
-    submitOrder: async () => {
+    submitOrder: async (tableId) => {
         const { cartItems, orderType, orderNotes } = get();
         set({ submitting: true, error: null });
 
         try {
             const request = {
                 orderType,
+                tableId: tableId ?? null,
                 notes: orderNotes || null,
                 items: cartItems.map((item) => ({
                     menuItemId: item.menuItem.id,

@@ -14,6 +14,7 @@ public class OrderResponse {
     private OrderType orderType;
     private OrderStatus status;
     private UUID tableId;
+    private String tableNumber;
     private UUID serverId;
     private Integer guestCount;
     private BigDecimal subtotal;

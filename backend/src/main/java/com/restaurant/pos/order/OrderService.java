@@ -3,6 +3,7 @@ package com.restaurant.pos.order;
 import com.restaurant.pos.common.BusinessRuleException;
 import com.restaurant.pos.common.ResourceNotFoundException;
 import com.restaurant.pos.events.EventPublisher;
+import com.restaurant.pos.table.TableRepository;
 import com.restaurant.pos.events.ItemStatusChangedEvent;
 import com.restaurant.pos.events.OrderFiredEvent;
 import com.restaurant.pos.events.OrderItemEvent;
@@ -37,6 +38,7 @@ public class OrderService {
     private final MenuService menuService;
     private final EventPublisher eventPublisher;
     private final SimpMessagingTemplate messagingTemplate;
+    private final TableRepository tableRepository;
 
     @Transactional(readOnly = true)
     public List<OrderResponse> getAllOrders() {
@@ -150,6 +152,10 @@ public class OrderService {
         response.setOrderType(order.getOrderType());
         response.setStatus(order.getStatus());
         response.setTableId(order.getTableId());
+        if (order.getTableId() != null) {
+            tableRepository.findById(order.getTableId())
+                    .ifPresent(t -> response.setTableNumber(t.getTableNumber()));
+        }
         response.setServerId(order.getServerId());
         response.setGuestCount(order.getGuestCount());
         response.setSubtotal(order.getSubtotal());

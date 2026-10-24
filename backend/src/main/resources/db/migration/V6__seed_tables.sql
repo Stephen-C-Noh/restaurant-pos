@@ -1,0 +1,21 @@
+-- V6__seed_tables.sql
+-- Seed restaurant tables for testing
+
+INSERT INTO tables (id, table_number, capacity, zone, status, current_server_id, created_at, updated_at)
+VALUES
+  ('b0000001-0000-0000-0000-000000000001', 'T01', 2, 'Main Dining', 'AVAILABLE', NULL, NOW(), NOW()),
+  ('b0000002-0000-0000-0000-000000000002', 'T02', 2, 'Main Dining', 'AVAILABLE', NULL, NOW(), NOW()),
+  ('b0000003-0000-0000-0000-000000000003', 'T03', 4, 'Main Dining', 'AVAILABLE', NULL, NOW(), NOW()),
+  ('b0000004-0000-0000-0000-000000000004', 'T04', 4, 'Main Dining', 'AVAILABLE', NULL, NOW(), NOW()),
+  ('b0000005-0000-0000-0000-000000000005', 'T05', 4, 'Main Dining', 'AVAILABLE', NULL, NOW(), NOW()),
+  ('b0000006-0000-0000-0000-000000000006', 'T06', 6, 'Main Dining', 'AVAILABLE', NULL, NOW(), NOW()),
+  ('b0000007-0000-0000-0000-000000000007', 'T07', 6, 'Main Dining', 'AVAILABLE', NULL, NOW(), NOW()),
+  ('b0000008-0000-0000-0000-000000000008', 'T08', 8, 'Main Dining', 'AVAILABLE', NULL, NOW(), NOW()),
+  ('b0000009-0000-0000-0000-000000000009', 'P01', 2, 'Patio',       'AVAILABLE', NULL, NOW(), NOW()),
+  ('b0000010-0000-0000-0000-000000000010', 'P02', 4, 'Patio',       'AVAILABLE', NULL, NOW(), NOW()),
+  ('b0000011-0000-0000-0000-000000000011', 'P03', 4, 'Patio',       'AVAILABLE', NULL, NOW(), NOW()),
+  ('b0000012-0000-0000-0000-000000000012', 'P04', 6, 'Patio',       'AVAILABLE', NULL, NOW(), NOW()),
+  ('b0000013-0000-0000-0000-000000000013', 'B01', 2, 'Bar',         'AVAILABLE', NULL, NOW(), NOW()),
+  ('b0000014-0000-0000-0000-000000000014', 'B02', 2, 'Bar',         'AVAILABLE', NULL, NOW(), NOW()),
+  ('b0000015-0000-0000-0000-000000000015', 'B03', 4, 'Bar',         'AVAILABLE', NULL, NOW(), NOW())
+ON CONFLICT (id) DO NOTHING;

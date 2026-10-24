@@ -1,8 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import axios from 'axios';
+import api from '../api';
 import { createOrder, fireOrder, fetchActiveOrders } from '../orderService';
 
-vi.mock('axios');
+vi.mock('../api', () => ({
+    default: {
+        get: vi.fn(),
+        post: vi.fn(),
+    },
+}));
 
 describe('orderService', () => {
     beforeEach(() => {
@@ -16,18 +21,18 @@ describe('orderService', () => {
                 items: [{ menuItemId: 'abc', quantity: 2 }],
             };
             const mockResponse = { id: 'order-1', orderNumber: 'ORD-001', status: 'DRAFT' };
-            axios.post.mockResolvedValueOnce({ data: mockResponse });
+            api.post.mockResolvedValueOnce({ data: mockResponse });
 
             const result = await createOrder(request);
 
-            expect(axios.post).toHaveBeenCalledWith('/api/orders', request);
+            expect(api.post).toHaveBeenCalledWith('/api/orders', request);
             expect(result).toEqual(mockResponse);
         });
 
         it('should propagate API errors', async () => {
             const error = new Error('Bad Request');
             error.response = { status: 400, data: { message: 'Invalid order' } };
-            axios.post.mockRejectedValueOnce(error);
+            api.post.mockRejectedValueOnce(error);
 
             await expect(createOrder({})).rejects.toThrow('Bad Request');
         });
@@ -36,11 +41,11 @@ describe('orderService', () => {
     describe('fireOrder', () => {
         it('should POST to /api/orders/{id}/fire and return data', async () => {
             const mockResponse = { id: 'order-1', status: 'FIRED' };
-            axios.post.mockResolvedValueOnce({ data: mockResponse });
+            api.post.mockResolvedValueOnce({ data: mockResponse });
 
             const result = await fireOrder('order-1');
 
-            expect(axios.post).toHaveBeenCalledWith('/api/orders/order-1/fire');
+            expect(api.post).toHaveBeenCalledWith('/api/orders/order-1/fire');
             expect(result).toEqual(mockResponse);
         });
     });
@@ -48,11 +53,11 @@ describe('orderService', () => {
     describe('fetchActiveOrders', () => {
         it('should GET /api/orders/active and return data', async () => {
             const mockOrders = [{ id: '1', status: 'FIRED' }];
-            axios.get.mockResolvedValueOnce({ data: mockOrders });
+            api.get.mockResolvedValueOnce({ data: mockOrders });
 
             const result = await fetchActiveOrders();
 
-            expect(axios.get).toHaveBeenCalledWith('/api/orders/active');
+            expect(api.get).toHaveBeenCalledWith('/api/orders/active');
             expect(result).toEqual(mockOrders);
         });
     });
