@@ -100,7 +100,7 @@ export default function TablePicker({ onTableSelected }) {
                                         <span className="text-lg font-bold text-gray-900">
                                             {table.tableNumber}
                                         </span>
-                                        <span className="bg-green-100 text-green-800 text-xs font-semibold px-2 py-0.5 rounded">
+                                        <span className="bg-green-100 text-green-800 text-xs font-semibold px-2 py-0.5 rounded-sm">
                                             Available
                                         </span>
                                     </div>

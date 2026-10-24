@@ -132,13 +132,13 @@ export default function Tables() {
                                 return (
                                     <div
                                         key={table.id}
-                                        className={`bg-white rounded-lg border-l-4 ${colors.border} p-4 shadow-sm`}
+                                        className={`bg-white rounded-lg border-l-4 ${colors.border} p-4 shadow-xs`}
                                     >
                                         <div className="flex justify-between items-start mb-2">
                                             <span className="text-lg font-bold text-gray-900">
                                                 {table.tableNumber}
                                             </span>
-                                            <span className={`text-xs font-semibold px-2 py-0.5 rounded ${colors.badge}`}>
+                                            <span className={`text-xs font-semibold px-2 py-0.5 rounded-sm ${colors.badge}`}>
                                                 {table.status}
                                             </span>
                                         </div>
@@ -168,7 +168,7 @@ export default function Tables() {
                                                 <button
                                                     onClick={() => handleDelete(table.id)}
                                                     disabled={isLoading}
-                                                    className="text-xs px-3 py-1 rounded bg-red-50 text-red-600 hover:bg-red-100 disabled:opacity-50"
+                                                    className="text-xs px-3 py-1 rounded-sm bg-red-50 text-red-600 hover:bg-red-100 disabled:opacity-50"
                                                 >
                                                     Delete
                                                 </button>

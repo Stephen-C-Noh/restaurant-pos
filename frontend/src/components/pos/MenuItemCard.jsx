@@ -5,7 +5,7 @@ export default function MenuItemCard({ item, onAdd }) {
             className="card text-center cursor-pointer hover:shadow-lg transition-shadow"
         >
             <div className="mb-1">
-                <span className="inline-block bg-gray-100 text-gray-600 text-xs px-2 py-0.5 rounded">
+                <span className="inline-block bg-gray-100 text-gray-600 text-xs px-2 py-0.5 rounded-sm">
                     {item.kitchenSection}
                 </span>
             </div>

@@ -175,7 +175,7 @@ function KitchenDisplay() {
                <button
                key={section}
                onClick={() => setSelectedSection(section)}
-               className={`px-4 py-2 rounded font-semibold transition-colors ${
+               className={`px-4 py-2 rounded-sm font-semibold transition-colors ${
                    selectedSection === section
                        ? 'bg-blue-600 text-white'
                        : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
@@ -208,19 +208,19 @@ function KitchenDisplay() {
                             <span>{item.quantity}x {item.menuItemName}</span>
                               {item.status === 'FIRED' && (
                                   <button onClick={() => updateItemStatus(order.id, item.id, 'PREPARING')}
-                                  className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-xs font-semibold transition-colors">
+                                  className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded-sm text-xs font-semibold transition-colors">
                                       Mark Preparing
                                   </button>
                               )}
                               {item.status === 'PREPARING' && (
                                   <button onClick={() => updateItemStatus(order.id, item.id, 'READY')}
-                                          className="bg-yellow-500 hover:bg-yellow-600 text-gray-900 px-3 py-1 rounded text-xs font-semibold transition-colors">
+                                          className="bg-yellow-500 hover:bg-yellow-600 text-gray-900 px-3 py-1 rounded-sm text-xs font-semibold transition-colors">
                                       Mark Ready
                                   </button>
                               )}
                               {item.status === 'READY' && (
                                   <button onClick={() => updateItemStatus(order.id, item.id, 'SERVED')}
-                                          className="bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded text-xs font-semibold transition-colors">
+                                          className="bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded-sm text-xs font-semibold transition-colors">
                                       Mark Served
                                   </button>
                               )}
