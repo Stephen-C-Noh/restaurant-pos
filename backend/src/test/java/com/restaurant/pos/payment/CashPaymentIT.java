@@ -1,17 +1,11 @@
 package com.restaurant.pos.payment;
 
 import com.restaurant.pos.IntegrationTest;
-import com.restaurant.pos.auth.JwtService;
-import com.restaurant.pos.user.UserRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
-import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
-import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
 import java.math.BigDecimal;
 import java.util.Map;
@@ -28,11 +22,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * not from the implementation. Setup and assertions go through SQL on purpose.
  */
 class CashPaymentIT extends IntegrationTest {
-
-    @Autowired private MockMvc mvc;
-    @Autowired private JdbcTemplate jdbc;
-    @Autowired private JwtService jwtService;
-    @Autowired private UserRepository userRepository;
 
     // --- happy path ---------------------------------------------------------
 
@@ -258,16 +247,6 @@ class CashPaymentIT extends IntegrationTest {
         return insertOrder("DINE_IN", status, total, tableId);
     }
 
-    private UUID insertOrder(String type, String status, String total, UUID tableId) {
-        UUID id = UUID.randomUUID();
-        BigDecimal t = new BigDecimal(total);
-        jdbc.update("""
-                INSERT INTO orders (id, order_number, order_type, status, table_id, subtotal, tax_amount, total)
-                VALUES (?, ?, ?, ?, ?, ?, 0.00, ?)""",
-                id, "IT-" + id.toString().substring(0, 8), type, status, tableId, t, t);
-        return id;
-    }
-
     private UUID table(String status) {
         UUID id = UUID.randomUUID();
         jdbc.update("INSERT INTO tables (id, table_number, capacity, status) VALUES (?, ?, 4, ?)",
@@ -299,17 +278,8 @@ class CashPaymentIT extends IntegrationTest {
                 .content(body));
     }
 
-    private MockHttpServletRequestBuilder authed(MockHttpServletRequestBuilder req, String username) {
-        String token = jwtService.generateToken(userRepository.findByUsername(username).orElseThrow());
-        return req.header("Authorization", "Bearer " + token);
-    }
-
     private static String idOf(ResultActions result) throws Exception {
         return com.jayway.jsonpath.JsonPath.read(result.andReturn().getResponse().getContentAsString(), "$.id");
-    }
-
-    private String orderStatus(UUID orderId) {
-        return jdbc.queryForObject("SELECT status FROM orders WHERE id = ?", String.class, orderId);
     }
 
     private int paymentCount(UUID orderId) {
