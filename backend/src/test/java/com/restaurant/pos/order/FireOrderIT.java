@@ -3,7 +3,6 @@ package com.restaurant.pos.order;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.restaurant.pos.IntegrationTest;
-import com.restaurant.pos.events.DomainEvent;
 import com.restaurant.pos.events.ItemStatusChangedEvent;
 import com.restaurant.pos.events.OrderFiredEvent;
 import com.restaurant.pos.menu.KitchenSection;
@@ -22,7 +21,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.MediaType;
 import org.springframework.kafka.core.DefaultKafkaConsumerFactory;
-import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.test.EmbeddedKafkaBroker;
 import org.springframework.kafka.test.utils.KafkaTestUtils;
 import org.springframework.messaging.Message;
@@ -30,7 +28,6 @@ import org.springframework.messaging.MessageChannel;
 import org.springframework.messaging.simp.SimpMessageHeaderAccessor;
 import org.springframework.messaging.support.AbstractSubscribableChannel;
 import org.springframework.messaging.support.ChannelInterceptor;
-import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.test.web.servlet.ResultActions;
 
 import java.nio.charset.StandardCharsets;
@@ -42,9 +39,6 @@ import java.util.UUID;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.doThrow;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -52,8 +46,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * Phase 1 of docs/improvement-plan.md — characterization of fire, item status and the push, as the code
- * behaves today. Setup and DB assertions go through SQL on purpose. The WebSocket push is captured in-process
+ * Phase 1 of docs/improvement-plan.md — the desired behavior of fire, item status and the push, limited to what
+ * already holds today. Scenarios that are red today live with the phase that turns them green. Setup and DB assertions go through SQL on purpose. The WebSocket push is captured in-process
  * with an interceptor on the brokerChannel; Kafka is read from the embedded broker with a fresh consumer group.
  */
 class FireOrderIT extends IntegrationTest {
@@ -66,7 +60,6 @@ class FireOrderIT extends IntegrationTest {
     private static final String ORDER_FIRED_TOPIC = "order-fired-events";
     private static final String ITEM_STATUS_TOPIC = "item-status-events";
 
-    @MockitoSpyBean private KafkaTemplate<String, DomainEvent> kafkaTemplate;
     @Autowired private EmbeddedKafkaBroker kafka;
     @Autowired private ObjectMapper json;
     @Autowired @Qualifier("brokerChannel") private AbstractSubscribableChannel brokerChannel;
@@ -148,7 +141,7 @@ class FireOrderIT extends IntegrationTest {
     // --- fire: rejected -----------------------------------------------------
 
     @ParameterizedTest
-    @ValueSource(strings = {"FIRED", "COMPLETED", "CANCELLED"})
+    @ValueSource(strings = {"FIRED", "PREPARING", "READY", "COMPLETED", "CANCELLED"})
     void fire_onNonFireableOrder_is409_andChangesNothing(String from) throws Exception {
         UUID orderId = orderWithItems(from, BURGER);
 
@@ -166,6 +159,15 @@ class FireOrderIT extends IntegrationTest {
         assertNothingHappened(orderId, "DRAFT");
     }
 
+    @Test
+    void fire_withoutToken_is401_andChangesNothing() throws Exception {
+        UUID orderId = orderWithItems("DRAFT", BURGER);
+
+        mvc.perform(post("/api/orders/" + orderId + "/fire")).andExpect(status().isUnauthorized());
+
+        assertNothingHappened(orderId, "DRAFT", "PENDING");
+    }
+
     // --- item status --------------------------------------------------------
 
     @Test
@@ -174,7 +176,6 @@ class FireOrderIT extends IntegrationTest {
         UUID itemId = itemIds(orderId).get(0);
         setItemStatus(itemId, "FIRED");
 
-        // permitAll in SecurityConfig: the KDS calls this without a token
         itemStatus(orderId, itemId, "PREPARING")
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(itemId.toString()))
@@ -214,44 +215,21 @@ class FireOrderIT extends IntegrationTest {
     // --- KDS initial load ---------------------------------------------------
 
     @Test
-    void activeOrders_withoutToken_returnsOnlyFiredOrders() throws Exception {
-        List<String> notFired = List.of("DRAFT", "SUBMITTED", "PREPARING", "READY", "COMPLETED", "CANCELLED");
+    void activeOrders_includesFired_excludesDraftSubmittedCompletedCancelled() throws Exception {
+        List<String> notFired = List.of("DRAFT", "SUBMITTED", "COMPLETED", "CANCELLED");
         UUID fired = insertOrder("TAKEOUT", "FIRED", "1.00", null);
         List<UUID> others = notFired.stream().map(s -> insertOrder("TAKEOUT", s, "1.00", null)).toList();
 
-        String body = mvc.perform(get("/api/orders/active"))
+        String body = mvc.perform(authed(get("/api/orders/active"), "kitchen1"))
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString();
 
         List<String> ids = new ArrayList<>();
-        List<String> statuses = new ArrayList<>();
         json.readTree(body).forEach(o -> {
             ids.add(o.get("id").asText());
-            statuses.add(o.get("status").asText());
         });
         assertThat(ids).contains(fired.toString());
         assertThat(ids).doesNotContainAnyElementsOf(others.stream().map(UUID::toString).toList());
-        // other IT classes leave orders behind, so assert on every returned row rather than on the list size
-        assertThat(statuses).containsOnly("FIRED");
-    }
-
-    // --- Phase 2 flips this -------------------------------------------------
-
-    /**
-     * Finding 2: a Kafka failure rolls the fire back today (EventPublisher rethrows, the transaction rolls back,
-     * GlobalExceptionHandler answers 500). The spy delegates to the real template in every other test and is
-     * reset after each test.
-     */
-    // flips in Phase 2: fire must return 200, order FIRED, WS message sent
-    @Test
-    void fire_whenKafkaSendThrows_is500_andOrderStaysDraft() throws Exception {
-        doThrow(new IllegalStateException("kafka down"))
-                .when(kafkaTemplate).send(anyString(), anyString(), any(DomainEvent.class));
-        UUID orderId = orderWithItems("DRAFT", BURGER);
-
-        fire(orderId).andExpect(status().isInternalServerError());
-
-        assertNothingHappened(orderId, "DRAFT", "PENDING");
     }
 
     // --- helpers ------------------------------------------------------------
@@ -273,7 +251,7 @@ class FireOrderIT extends IntegrationTest {
     }
 
     private ResultActions itemStatus(UUID orderId, UUID itemId, String newStatus) throws Exception {
-        return mvc.perform(patch("/api/orders/" + orderId + "/items/" + itemId + "/status")
+        return mvc.perform(authed(patch("/api/orders/" + orderId + "/items/" + itemId + "/status"), "kitchen1")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"status\":\"" + newStatus + "\"}"));
     }
