@@ -52,6 +52,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.fail;
@@ -594,6 +595,31 @@ class FireOrderIT extends IntegrationTest {
         await().atMost(Duration.ofSeconds(10)).untilAsserted(() ->
                 assertThat(outboxRows(key).get(0).get("status")).isEqualTo("PROCESSED"));
         assertThat(records(topic, key, Duration.ofSeconds(10))).hasSize(1);
+    }
+
+    @Test
+    void aKickWhileADrainIsRunning_doesNotLetALaterRowOvertakeTheFailingOne() throws Exception {
+        UUID orderId = orderWithItems("DRAFT", BURGER);
+        AtomicInteger firedSends = new AtomicInteger();
+        doAnswer(inv -> {
+            if (ORDER_FIRED_TOPIC.equals(inv.getArgument(0)) && orderId.toString().equals(inv.getArgument(1))) {
+                if (firedSends.getAndIncrement() == 0) {
+                    Thread.sleep(1500); // the first drain is still inside send() when the next kick arrives
+                }
+                throw new IllegalStateException("kafka down");
+            }
+            return inv.callRealMethod();
+        }).when(outboxKafkaTemplate).send(anyString(), anyString(), anyString());
+
+        fire(orderId).andExpect(status().isOk());
+        itemStatus(orderId, itemIds(orderId).get(0), "PREPARING").andExpect(status().isOk());
+
+        // Two drains have tried the fire row, one after the other. Overlapping drains would instead have let
+        // the second one skip the locked fire row and publish the item row ahead of it.
+        await().atMost(Duration.ofSeconds(10)).untilAsserted(() ->
+                assertThat((Integer) outboxRows(orderId).get(0).get("attempts")).isGreaterThanOrEqualTo(2));
+        assertThat(outboxRows(orderId).get(1).get("status")).isEqualTo("PENDING");
+        assertThat(records(ITEM_STATUS_TOPIC, orderId, Duration.ofSeconds(1))).isEmpty();
     }
 
     // --- helpers ------------------------------------------------------------
