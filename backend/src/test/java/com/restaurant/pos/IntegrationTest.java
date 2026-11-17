@@ -1,13 +1,18 @@
 package com.restaurant.pos;
 
 import com.restaurant.pos.auth.JwtService;
+import com.restaurant.pos.order.OrderChanged;
 import com.restaurant.pos.user.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.context.annotation.Import;
 import org.springframework.kafka.test.context.EmbeddedKafka;
+import org.springframework.transaction.event.TransactionPhase;
+import org.springframework.transaction.event.TransactionalEventListener;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import org.testcontainers.containers.PostgreSQLContainer;
@@ -23,6 +28,7 @@ import java.util.UUID;
 @SpringBootTest(properties = "spring.kafka.bootstrap-servers=${spring.embedded.kafka.brokers}")
 @AutoConfigureMockMvc
 @EmbeddedKafka
+@Import(IntegrationTest.FailBeforeCommit.class)
 public abstract class IntegrationTest {
 
     @ServiceConnection
@@ -30,6 +36,19 @@ public abstract class IntegrationTest {
 
     static {
         postgres.start();
+    }
+
+    /** Arm to make the next order transaction fail at commit time, after everything it wrote. */
+    @TestConfiguration(proxyBeanMethods = false)
+    public static class FailBeforeCommit {
+        public static volatile boolean armed;
+
+        @TransactionalEventListener(phase = TransactionPhase.BEFORE_COMMIT)
+        public void failIfArmed(OrderChanged changed) {
+            if (armed) {
+                throw new IllegalStateException("test: fail before commit");
+            }
+        }
     }
 
     @Autowired protected MockMvc mvc;

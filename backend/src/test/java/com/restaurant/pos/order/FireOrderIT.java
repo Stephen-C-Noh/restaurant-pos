@@ -349,6 +349,20 @@ class FireOrderIT extends IntegrationTest {
         assertNothingHappened(orderId, "DRAFT", "PENDING");
     }
 
+    @Test
+    void fire_rolledBackAfterTheOutboxInsert_leavesNoRow() throws Exception {
+        UUID orderId = orderWithItems("DRAFT", BURGER);
+        FailBeforeCommit.armed = true;
+        try {
+            fire(orderId).andExpect(status().isInternalServerError());
+        } finally {
+            FailBeforeCommit.armed = false;
+        }
+
+        assertNothingHappened(orderId, "DRAFT", "PENDING");
+        assertThat(outboxRows(orderId)).isEmpty();
+    }
+
     // --- helpers ------------------------------------------------------------
 
     /** An order with one PENDING item per menu item id, inserted via SQL. */
