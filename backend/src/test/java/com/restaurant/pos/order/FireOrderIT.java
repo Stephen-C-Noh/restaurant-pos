@@ -363,6 +363,24 @@ class FireOrderIT extends IntegrationTest {
         assertThat(outboxRows(orderId)).isEmpty();
     }
 
+    @Test
+    void itemStatusChange_writesItsOutboxRow() throws Exception {
+        UUID orderId = orderWithItems("FIRED", BURGER);
+        UUID itemId = itemIds(orderId).get(0);
+        setItemStatus(itemId, "FIRED");
+
+        itemStatus(orderId, itemId, "PREPARING").andExpect(status().isOk());
+
+        List<Map<String, Object>> rows = outboxRows(orderId);
+        assertThat(rows).hasSize(1);
+        assertThat(rows.get(0)).containsEntry("aggregate_type", "Order")
+                .containsEntry("event_type", "ItemStatusChanged")
+                .containsEntry("topic", ITEM_STATUS_TOPIC)
+                .containsEntry("status", "PENDING");
+        assertThat(json.readTree((String) rows.get(0).get("payload")).get("itemId").asText())
+                .isEqualTo(itemId.toString());
+    }
+
     // --- helpers ------------------------------------------------------------
 
     /** An order with one PENDING item per menu item id, inserted via SQL. */

@@ -36,6 +36,7 @@ import java.util.stream.Collectors;
 public class OrderService {
 
     private static final String ORDER_FIRED_TOPIC = "order-fired-events";
+    private static final String ITEM_STATUS_TOPIC = "item-status-events";
 
     private static final Set<OrderStatus> TERMINAL = Set.of(OrderStatus.COMPLETED, OrderStatus.CANCELLED);
 
@@ -352,7 +353,8 @@ public class OrderService {
 
         // get Updated Order info
         Order updatedOrder = orderRepository.findById(orderId).orElseThrow(() -> new ResourceNotFoundException("Order not found: " + orderId));
-        // Kafka publish and WebSocket push happen after commit (see OrderEvents)
+        // The outbox row commits with the status change; Kafka publish and WebSocket push happen after commit (see OrderEvents)
+        outbox.add(event, ITEM_STATUS_TOPIC);
         events.publishEvent(new OrderChanged(event, toOrderResponse(updatedOrder)));
 
         return toOrderItemResponse(item);
