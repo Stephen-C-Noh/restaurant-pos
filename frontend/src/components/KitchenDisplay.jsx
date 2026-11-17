@@ -108,6 +108,9 @@ function KitchenDisplay() {
             onConnect: () => {
                 console.log('WebSocket Connected.');
 
+                // Orders fired while the socket was down are only in the DB: reload on every (re)connect
+                fetchOrders();
+
                 // Subscribe to order updates
                 client.subscribe('/topic/orders', (message) =>{
                     console.log('Received Order: ', message.body);
