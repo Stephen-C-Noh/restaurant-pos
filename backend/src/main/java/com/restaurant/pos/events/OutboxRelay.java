@@ -5,12 +5,16 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Component;
 
+import java.util.concurrent.TimeUnit;
+
 @Component
 @RequiredArgsConstructor
 @Slf4j
 public class OutboxRelay {
 
     private static final int BATCH = 50;
+    /** Wait far less than Kafka's 120 s delivery timeout: later this wait happens while the rows are locked. */
+    private static final long ACK_SECONDS = 5;
 
     private final OutboxRepository outbox;
     private final KafkaTemplate<String, String> kafka;
@@ -18,7 +22,7 @@ public class OutboxRelay {
     public void drain() {
         for (OutboxRepository.Row row : outbox.pending(BATCH)) {
             try {
-                kafka.send(row.topic(), row.key(), row.payload()).get();
+                kafka.send(row.topic(), row.key(), row.payload()).get(ACK_SECONDS, TimeUnit.SECONDS);
             } catch (Exception e) {
                 log.warn("Outbox publish to {} failed for {}", row.topic(), row.key(), e);
                 outbox.markFailed(row.id(), e.toString());

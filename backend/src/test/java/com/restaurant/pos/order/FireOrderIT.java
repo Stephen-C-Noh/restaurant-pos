@@ -46,6 +46,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -56,7 +57,10 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
@@ -430,6 +434,25 @@ class FireOrderIT extends IntegrationTest {
             assertThat(row.get("processed_at")).isNotNull();
         });
         assertThat(records(ORDER_FIRED_TOPIC, orderId, Duration.ofSeconds(10))).hasSize(1);
+    }
+
+    @Test
+    void drain_doesNotWaitLongerThanTheAckBound_forAnUnansweredSend() {
+        String topic = "outbox-it-ack-timeout"; // no consumer in the app
+        UUID key = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO outbox_events (aggregate_type, aggregate_id, event_type, payload, topic)
+                VALUES ('Order', ?, 'IT', '{}'::jsonb, ?)""", key.toString(), topic);
+        // A broker that never answers: the future never completes.
+        doReturn(new CompletableFuture<>()).when(outboxKafkaTemplate).send(eq(topic), anyString(), anyString());
+
+        // The row stays locked while we wait, so the wait must be far below Kafka's 120 s delivery timeout.
+        assertTimeoutPreemptively(Duration.ofSeconds(15), relay::drain);
+
+        Map<String, Object> row = outboxRows(key).get(0);
+        assertThat(row.get("status")).isEqualTo("PENDING");
+        assertThat((Integer) row.get("attempts")).isEqualTo(1);
+        assertThat((String) row.get("last_error")).contains("TimeoutException");
     }
 
     // --- helpers ------------------------------------------------------------
