@@ -3,6 +3,7 @@ package com.restaurant.pos.order;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.restaurant.pos.IntegrationTest;
+import com.restaurant.pos.events.DomainEvent;
 import com.restaurant.pos.events.ItemStatusChangedEvent;
 import com.restaurant.pos.events.OrderFiredEvent;
 import com.restaurant.pos.menu.KitchenSection;
@@ -21,6 +22,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.MediaType;
 import org.springframework.kafka.core.DefaultKafkaConsumerFactory;
+import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.test.EmbeddedKafkaBroker;
 import org.springframework.kafka.test.utils.KafkaTestUtils;
 import org.springframework.messaging.Message;
@@ -28,6 +30,7 @@ import org.springframework.messaging.MessageChannel;
 import org.springframework.messaging.simp.SimpMessageHeaderAccessor;
 import org.springframework.messaging.support.AbstractSubscribableChannel;
 import org.springframework.messaging.support.ChannelInterceptor;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.test.web.servlet.ResultActions;
 
 import java.nio.charset.StandardCharsets;
@@ -36,9 +39,18 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.Callable;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doThrow;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -63,6 +75,8 @@ class FireOrderIT extends IntegrationTest {
     @Autowired private EmbeddedKafkaBroker kafka;
     @Autowired private ObjectMapper json;
     @Autowired @Qualifier("brokerChannel") private AbstractSubscribableChannel brokerChannel;
+    // Delegates to the real template unless a test stubs it; reset after each test.
+    @MockitoSpyBean private KafkaTemplate<String, DomainEvent> kafkaTemplate;
 
     private final List<Message<?>> sent = new CopyOnWriteArrayList<>();
     private final ChannelInterceptor capture = new ChannelInterceptor() {
@@ -230,6 +244,44 @@ class FireOrderIT extends IntegrationTest {
         });
         assertThat(ids).contains(fired.toString());
         assertThat(ids).doesNotContainAnyElementsOf(others.stream().map(UUID::toString).toList());
+    }
+
+    // --- Phase 2: fire commits independently of Kafka; concurrent fires are serialized ---
+
+    @Test
+    void fire_whenKafkaSendThrows_is200_orderFired_andPushed() throws Exception {
+        doThrow(new IllegalStateException("kafka down"))
+                .when(kafkaTemplate).send(anyString(), anyString(), any(DomainEvent.class));
+        UUID orderId = orderWithItems("DRAFT", BURGER);
+
+        fire(orderId)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("FIRED"));
+
+        assertThat(orderStatus(orderId)).isEqualTo("FIRED");
+        assertThat(firedAt(orderId)).isNotNull();
+        assertThat(itemStatuses(orderId)).containsExactly("FIRED");
+        assertThat(topicOrders(orderId)).hasSize(1);
+    }
+
+    @Test
+    void fire_twiceAtOnce_oneWins_theOtherIs409_oneEventOnePush() throws Exception {
+        UUID orderId = orderWithItems("DRAFT", BURGER, SALAD);
+        CountDownLatch go = new CountDownLatch(1);
+        ExecutorService pool = Executors.newFixedThreadPool(2);
+        Callable<Integer> call = () -> {
+            go.await();
+            return fire(orderId).andReturn().getResponse().getStatus();
+        };
+        Future<Integer> first = pool.submit(call);
+        Future<Integer> second = pool.submit(call);
+        go.countDown();
+        List<Integer> codes = List.of(first.get(30, TimeUnit.SECONDS), second.get(30, TimeUnit.SECONDS));
+        pool.shutdown();
+
+        assertThat(codes).containsExactlyInAnyOrder(200, 409);
+        assertThat(records(ORDER_FIRED_TOPIC, orderId, Duration.ofSeconds(10))).hasSize(1);
+        assertThat(topicOrders(orderId)).hasSize(1);
     }
 
     // --- helpers ------------------------------------------------------------
