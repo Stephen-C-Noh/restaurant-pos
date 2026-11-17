@@ -322,6 +322,18 @@ class FireOrderIT extends IntegrationTest {
                 .isEqualTo(orderId.toString());
     }
 
+    @Test
+    void rejectedFire_writesNoOutboxRow() throws Exception {
+        UUID alreadyFired = orderWithItems("FIRED", BURGER);
+        UUID empty = insertOrder("TAKEOUT", "DRAFT", "0.00", null);
+
+        fire(alreadyFired).andExpect(status().isConflict());
+        fire(empty).andExpect(status().isConflict());
+
+        assertThat(outboxRows(alreadyFired)).isEmpty();
+        assertThat(outboxRows(empty)).isEmpty();
+    }
+
     // --- helpers ------------------------------------------------------------
 
     /** An order with one PENDING item per menu item id, inserted via SQL. */
