@@ -48,4 +48,8 @@ public class OutboxRepository {
     public void markProcessed(UUID id) {
         jdbc.update("UPDATE outbox_events SET status = 'PROCESSED', processed_at = now() WHERE id = ?", id);
     }
+
+    public void markFailed(UUID id, String error) {
+        jdbc.update("UPDATE outbox_events SET attempts = attempts + 1, last_error = ? WHERE id = ?", error, id);
+    }
 }

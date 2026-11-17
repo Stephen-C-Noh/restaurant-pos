@@ -51,9 +51,12 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.awaitility.Awaitility.await;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
@@ -396,6 +399,37 @@ class FireOrderIT extends IntegrationTest {
         assertThat(records).hasSize(1);
         assertThat(records.get(0).key()).isEqualTo(key.toString());
         assertThat(json.readTree(records.get(0).value()).get("hello").asText()).isEqualTo("outbox");
+    }
+
+    @Test
+    void fire_whenKafkaFails_is200_rowStaysPending_attemptsGrow_andItIsPublishedOnceKafkaIsBack() throws Exception {
+        AtomicBoolean down = new AtomicBoolean(true);
+        doAnswer(inv -> {
+            if (down.get()) {
+                throw new IllegalStateException("kafka down");
+            }
+            return inv.callRealMethod();
+        }).when(outboxKafkaTemplate).send(anyString(), anyString(), anyString());
+        UUID orderId = orderWithItems("DRAFT", BURGER);
+
+        fire(orderId).andExpect(status().isOk()).andExpect(jsonPath("$.status").value("FIRED"));
+
+        List<Map<String, Object>> rows = outboxRows(orderId);
+        assertThat(rows).hasSize(1);
+        assertThat(rows.get(0).get("status")).isEqualTo("PENDING");
+        assertThat((Integer) rows.get(0).get("attempts")).isGreaterThanOrEqualTo(1);
+        assertThat((String) rows.get(0).get("last_error")).contains("kafka down");
+        assertThat(records(ORDER_FIRED_TOPIC, orderId, Duration.ofSeconds(1))).isEmpty();
+
+        down.set(false);
+        relay.drain();
+
+        await().atMost(Duration.ofSeconds(10)).untilAsserted(() -> {
+            Map<String, Object> row = outboxRows(orderId).get(0);
+            assertThat(row.get("status")).isEqualTo("PROCESSED");
+            assertThat(row.get("processed_at")).isNotNull();
+        });
+        assertThat(records(ORDER_FIRED_TOPIC, orderId, Duration.ofSeconds(10))).hasSize(1);
     }
 
     // --- helpers ------------------------------------------------------------
