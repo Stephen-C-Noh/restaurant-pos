@@ -30,10 +30,6 @@ public class OrderEvents {
         } catch (Exception e) {
             log.error("WebSocket push failed for order {}", changed.order().getId(), e);
         }
-        try {
-            relay.drain();
-        } catch (Exception e) {
-            log.error("Outbox drain failed for order {}", changed.order().getId(), e);
-        }
+        relay.kick();
     }
 }

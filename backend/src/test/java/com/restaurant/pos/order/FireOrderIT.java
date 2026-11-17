@@ -421,15 +421,17 @@ class FireOrderIT extends IntegrationTest {
 
         fire(orderId).andExpect(status().isOk()).andExpect(jsonPath("$.status").value("FIRED"));
 
-        List<Map<String, Object>> rows = outboxRows(orderId);
-        assertThat(rows).hasSize(1);
-        assertThat(rows.get(0).get("status")).isEqualTo("PENDING");
-        assertThat((Integer) rows.get(0).get("attempts")).isGreaterThanOrEqualTo(1);
-        assertThat((String) rows.get(0).get("last_error")).contains("kafka down");
+        assertThat(outboxRows(orderId)).hasSize(1);
+        await().atMost(Duration.ofSeconds(10)).untilAsserted(() -> {
+            Map<String, Object> row = outboxRows(orderId).get(0);
+            assertThat(row.get("status")).isEqualTo("PENDING");
+            assertThat((Integer) row.get("attempts")).isGreaterThanOrEqualTo(1);
+            assertThat((String) row.get("last_error")).contains("kafka down");
+        });
         assertThat(records(ORDER_FIRED_TOPIC, orderId, Duration.ofSeconds(1))).isEmpty();
 
         down.set(false);
-        relay.drain();
+        relay.kick(); // on the relay thread, like the real retry
 
         await().atMost(Duration.ofSeconds(10)).untilAsserted(() -> {
             Map<String, Object> row = outboxRows(orderId).get(0);
@@ -472,11 +474,13 @@ class FireOrderIT extends IntegrationTest {
         fire(orderId).andExpect(status().isOk());
         itemStatus(orderId, itemIds(orderId).get(0), "PREPARING").andExpect(status().isOk());
 
-        List<Map<String, Object>> rows = outboxRows(orderId);
-        assertThat(rows).extracting(r -> r.get("event_type")).containsExactly("OrderFired", "ItemStatusChanged");
+        assertThat(outboxRows(orderId)).extracting(r -> r.get("event_type"))
+                .containsExactly("OrderFired", "ItemStatusChanged");
         // The fire row keeps failing; the item row must not jump the queue, or the retry would reorder them.
+        await().atMost(Duration.ofSeconds(10)).untilAsserted(() ->
+                assertThat((Integer) outboxRows(orderId).get(0).get("attempts")).isGreaterThanOrEqualTo(1));
+        List<Map<String, Object>> rows = outboxRows(orderId);
         assertThat(rows.get(0).get("status")).isEqualTo("PENDING");
-        assertThat((Integer) rows.get(0).get("attempts")).isGreaterThanOrEqualTo(2);
         assertThat(rows.get(1).get("status")).isEqualTo("PENDING");
         assertThat(rows.get(1).get("attempts")).isEqualTo(0);
         assertThat(records(ITEM_STATUS_TOPIC, orderId, Duration.ofSeconds(1))).isEmpty();
@@ -501,7 +505,7 @@ class FireOrderIT extends IntegrationTest {
         itemStatus(orderId, itemIds(orderId).get(0), "PREPARING").andExpect(status().isOk());
 
         firedDown.set(false);
-        relay.drain();
+        relay.kick(); // on the relay thread, like the real retry
 
         await().atMost(Duration.ofSeconds(10)).untilAsserted(() ->
                 assertThat(outboxRows(orderId)).extracting(r -> r.get("status"))
@@ -557,6 +561,27 @@ class FireOrderIT extends IntegrationTest {
         for (UUID key : keys) {
             assertThat(records(topic, key, Duration.ofSeconds(10))).hasSize(1);
         }
+    }
+
+    @Test
+    void fire_doesNotWaitForKafka_andTheRowIsPublishedOnceKafkaAnswers() throws Exception {
+        UUID orderId = orderWithItems("DRAFT", BURGER);
+        CountDownLatch release = new CountDownLatch(1);
+        doAnswer(inv -> {
+            if (orderId.toString().equals(inv.getArgument(1))) {
+                release.await(15, TimeUnit.SECONDS); // a slow broker
+            }
+            return inv.callRealMethod();
+        }).when(outboxKafkaTemplate).send(anyString(), anyString(), anyString());
+        try {
+            assertTimeoutPreemptively(Duration.ofSeconds(3), () -> fire(orderId).andExpect(status().isOk()));
+        } finally {
+            release.countDown();
+        }
+
+        await().atMost(Duration.ofSeconds(10)).untilAsserted(() ->
+                assertThat(outboxRows(orderId).get(0).get("status")).isEqualTo("PROCESSED"));
+        assertThat(records(ORDER_FIRED_TOPIC, orderId, Duration.ofSeconds(10))).hasSize(1);
     }
 
     // --- helpers ------------------------------------------------------------

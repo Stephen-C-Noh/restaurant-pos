@@ -2,11 +2,15 @@ package com.restaurant.pos.events;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import jakarta.annotation.PreDestroy;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 @Component
 @RequiredArgsConstructor
@@ -20,6 +24,29 @@ public class OutboxRelay {
     private final OutboxRepository outbox;
     private final KafkaTemplate<String, String> kafka;
     private final TransactionTemplate tx;
+
+    // One thread runs every drain from kick(), so drains never overlap inside this JVM and a request thread
+    // never waits on Kafka.
+    private final ExecutorService executor = Executors.newSingleThreadExecutor(r -> {
+        Thread t = new Thread(r, "outbox-relay");
+        t.setDaemon(true);
+        return t;
+    });
+    private final AtomicBoolean drainQueued = new AtomicBoolean();
+
+    /** Never blocks the caller. Calls while a drain is already queued merge into it. */
+    public void kick() {
+        if (drainQueued.compareAndSet(false, true)) {
+            executor.execute(() -> {
+                drainQueued.set(false);
+                try {
+                    drain();
+                } catch (Exception e) {
+                    log.error("Outbox drain failed", e);
+                }
+            });
+        }
+    }
 
     /** One batch in one transaction, so the rows stay locked for other drains until it commits. */
     public void drain() {
@@ -35,5 +62,10 @@ public class OutboxRelay {
                 outbox.markProcessed(row.id());
             }
         });
+    }
+
+    @PreDestroy
+    void stop() {
+        executor.shutdownNow();
     }
 }
