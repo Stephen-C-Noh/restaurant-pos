@@ -304,6 +304,24 @@ class FireOrderIT extends IntegrationTest {
         assertThat(firedAtSeenAtPush).hasSize(1).doesNotContainNull();
     }
 
+    // --- Phase 3: events go through the outbox ---------------------------------
+
+    @Test
+    void fire_writesExactlyOneOutboxRow() throws Exception {
+        UUID orderId = orderWithItems("DRAFT", BURGER, SALAD);
+
+        fire(orderId).andExpect(status().isOk());
+
+        List<Map<String, Object>> rows = outboxRows(orderId);
+        assertThat(rows).hasSize(1);
+        assertThat(rows.get(0)).containsEntry("aggregate_type", "Order")
+                .containsEntry("event_type", "OrderFired")
+                .containsEntry("topic", ORDER_FIRED_TOPIC)
+                .containsEntry("status", "PENDING");
+        assertThat(json.readTree((String) rows.get(0).get("payload")).get("orderId").asText())
+                .isEqualTo(orderId.toString());
+    }
+
     // --- helpers ------------------------------------------------------------
 
     /** An order with one PENDING item per menu item id, inserted via SQL. */
@@ -316,6 +334,13 @@ class FireOrderIT extends IntegrationTest {
                     orderId, UUID.fromString(menuItemId));
         }
         return orderId;
+    }
+
+    /** Outbox rows of one order in creation order. */
+    private List<Map<String, Object>> outboxRows(UUID orderId) {
+        return jdbc.queryForList("""
+                SELECT aggregate_type, event_type, topic, status, attempts, last_error, processed_at, payload::text AS payload
+                FROM outbox_events WHERE aggregate_id = ? ORDER BY created_at, id""", orderId.toString());
     }
 
     private ResultActions fire(UUID orderId) throws Exception {

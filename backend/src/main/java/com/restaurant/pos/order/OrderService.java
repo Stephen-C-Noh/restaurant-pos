@@ -7,6 +7,7 @@ import com.restaurant.pos.table.TableStatus;
 import com.restaurant.pos.events.ItemStatusChangedEvent;
 import com.restaurant.pos.events.OrderFiredEvent;
 import com.restaurant.pos.events.OrderItemEvent;
+import com.restaurant.pos.events.OutboxRepository;
 import com.restaurant.pos.menu.KitchenSection;
 import com.restaurant.pos.menu.MenuItem;
 import com.restaurant.pos.menu.MenuService;
@@ -34,12 +35,15 @@ import java.util.stream.Collectors;
 @Slf4j
 public class OrderService {
 
+    private static final String ORDER_FIRED_TOPIC = "order-fired-events";
+
     private static final Set<OrderStatus> TERMINAL = Set.of(OrderStatus.COMPLETED, OrderStatus.CANCELLED);
 
     private final OrderRepository orderRepository;
     private final OrderItemRepository orderItemRepository;
     private final MenuService menuService;
     private final ApplicationEventPublisher events;
+    private final OutboxRepository outbox;
     private final TableRepository tableRepository;
 
     @Transactional(readOnly = true)
@@ -289,7 +293,8 @@ public class OrderService {
                 itemsBySection
         );
 
-        // Kafka publish and WebSocket push happen after commit (see OrderEvents)
+        // The outbox row commits with the fire; Kafka publish and WebSocket push happen after commit (see OrderEvents)
+        outbox.add(event, ORDER_FIRED_TOPIC);
         OrderResponse response = toOrderResponse(order);
         events.publishEvent(new OrderChanged(event, response));
         return response;
