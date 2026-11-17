@@ -24,8 +24,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class OutboxRelay {
 
     private static final int BATCH = 50;
-    /** The rows are locked while we wait, so wait far less than Kafka's 120 s delivery timeout. */
-    private static final long ACK_SECONDS = 5;
+    /** The rows are locked while we wait. Longer than the producer's 5 s delivery.timeout.ms (KafkaConfig), so the producer's own expiry decides the failure. */
+    private static final long ACK_SECONDS = 6;
 
     private final OutboxRepository outbox;
     private final KafkaTemplate<String, String> kafka;

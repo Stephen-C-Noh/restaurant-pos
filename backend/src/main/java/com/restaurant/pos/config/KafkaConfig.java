@@ -36,6 +36,11 @@ public class KafkaConfig {
         config.put(ProducerConfig.RETRIES_CONFIG, 3);
         config.put(ProducerConfig.ENABLE_IDEMPOTENCE_CONFIG, true);
         config.put(ProducerConfig.MAX_BLOCK_MS_CONFIG, 1000);
+        // The producer gives up on a record before the relay stops waiting for it (OutboxRelay.ACK_SECONDS),
+        // so a send the relay counted as failed is not delivered later from the buffer. With the 120 s default,
+        // every retry during an outage left one more copy that all landed once the broker came back.
+        config.put(ProducerConfig.REQUEST_TIMEOUT_MS_CONFIG, 4000);
+        config.put(ProducerConfig.DELIVERY_TIMEOUT_MS_CONFIG, 5000);
         return new DefaultKafkaProducerFactory<>(config);
     }
 
