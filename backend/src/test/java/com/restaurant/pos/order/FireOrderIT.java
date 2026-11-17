@@ -334,6 +334,21 @@ class FireOrderIT extends IntegrationTest {
         assertThat(outboxRows(empty)).isEmpty();
     }
 
+    @Test
+    void fire_whenTheOutboxRowCannotBeWritten_doesNotFire() throws Exception {
+        UUID orderId = orderWithItems("DRAFT", BURGER);
+        // Makes the outbox INSERT for this order fail, whatever the code does around it.
+        jdbc.execute("ALTER TABLE outbox_events ADD CONSTRAINT it_block_order CHECK (aggregate_id <> '"
+                + orderId + "')");
+        try {
+            fire(orderId).andExpect(status().isInternalServerError());
+        } finally {
+            jdbc.execute("ALTER TABLE outbox_events DROP CONSTRAINT it_block_order");
+        }
+
+        assertNothingHappened(orderId, "DRAFT", "PENDING");
+    }
+
     // --- helpers ------------------------------------------------------------
 
     /** An order with one PENDING item per menu item id, inserted via SQL. */
