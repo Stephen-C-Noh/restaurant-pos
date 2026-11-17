@@ -480,6 +480,37 @@ class FireOrderIT extends IntegrationTest {
         assertThat(records(ITEM_STATUS_TOPIC, orderId, Duration.ofSeconds(1))).isEmpty();
     }
 
+    @Test
+    void forOneOrder_fireThenItemStatusArriveOnKafkaInThatOrder() throws Exception {
+        UUID orderId = orderWithItems("DRAFT", BURGER);
+        AtomicBoolean firedDown = new AtomicBoolean(true);
+        List<String> published = new CopyOnWriteArrayList<>();
+        doAnswer(inv -> {
+            String topic = inv.getArgument(0);
+            if (firedDown.get() && ORDER_FIRED_TOPIC.equals(topic) && orderId.toString().equals(inv.getArgument(1))) {
+                throw new IllegalStateException("kafka down");
+            }
+            Object result = inv.callRealMethod();
+            published.add(topic + ":" + inv.getArgument(1));
+            return result;
+        }).when(outboxKafkaTemplate).send(anyString(), anyString(), anyString());
+        // The fire event fails first, then the item event is created: the worst case for ordering.
+        fire(orderId).andExpect(status().isOk());
+        itemStatus(orderId, itemIds(orderId).get(0), "PREPARING").andExpect(status().isOk());
+
+        firedDown.set(false);
+        relay.drain();
+
+        await().atMost(Duration.ofSeconds(10)).untilAsserted(() ->
+                assertThat(outboxRows(orderId)).extracting(r -> r.get("status"))
+                        .containsExactly("PROCESSED", "PROCESSED"));
+        assertThat(published.stream().filter(p -> p.endsWith(":" + orderId)).toList())
+                .containsExactly(ORDER_FIRED_TOPIC + ":" + orderId, ITEM_STATUS_TOPIC + ":" + orderId);
+        ConsumerRecord<String, String> fired = records(ORDER_FIRED_TOPIC, orderId, Duration.ofSeconds(10)).get(0);
+        ConsumerRecord<String, String> item = records(ITEM_STATUS_TOPIC, orderId, Duration.ofSeconds(10)).get(0);
+        assertThat(fired.timestamp()).isLessThanOrEqualTo(item.timestamp());
+    }
+
     // --- helpers ------------------------------------------------------------
 
     /** An order with one PENDING item per menu item id, inserted via SQL. */
