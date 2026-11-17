@@ -12,7 +12,8 @@ import org.springframework.transaction.event.TransactionalEventListener;
 
 /**
  * Push and publish only after the order transaction committed: a rollback sends nothing,
- * and a slow or dead Kafka can no longer fail the fire or hold its DB connection.
+ * and a slow or dead Kafka can no longer fail the fire. It still delays the response by up to
+ * max.block.ms (1 s, KafkaConfig), during which open-in-view keeps the request's DB connection.
  * Each step logs and swallows its own failure.
  */
 @Component
