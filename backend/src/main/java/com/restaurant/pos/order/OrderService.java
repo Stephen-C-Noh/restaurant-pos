@@ -294,7 +294,7 @@ public class OrderService {
                 itemsBySection
         );
 
-        // The outbox row commits with the fire; Kafka publish and WebSocket push happen after commit (see OrderEvents)
+        // The outbox row commits with the fire (the relay publishes it to Kafka); the WebSocket push happens after commit (see OrderEvents)
         outbox.add(event, ORDER_FIRED_TOPIC);
         OrderResponse response = toOrderResponse(order);
         events.publishEvent(new OrderChanged(event, response));
@@ -353,7 +353,7 @@ public class OrderService {
 
         // get Updated Order info
         Order updatedOrder = orderRepository.findById(orderId).orElseThrow(() -> new ResourceNotFoundException("Order not found: " + orderId));
-        // The outbox row commits with the status change; Kafka publish and WebSocket push happen after commit (see OrderEvents)
+        // The outbox row commits with the status change (the relay publishes it to Kafka); the WebSocket push happens after commit (see OrderEvents)
         outbox.add(event, ITEM_STATUS_TOPIC);
         events.publishEvent(new OrderChanged(event, toOrderResponse(updatedOrder)));
 

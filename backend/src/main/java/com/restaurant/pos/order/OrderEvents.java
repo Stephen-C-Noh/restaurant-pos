@@ -9,10 +9,9 @@ import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
 
 /**
- * Push and publish only after the order transaction committed: a rollback sends nothing,
- * and a slow or dead Kafka can no longer fail the fire. It still delays the response by up to
- * max.block.ms (1 s, KafkaConfig), during which open-in-view keeps the request's DB connection.
- * Each step logs and swallows its own failure.
+ * Runs only after the order transaction committed: a rollback pushes nothing. The Kafka event is already
+ * durable in the outbox by then; the relay kick below only saves it from waiting for the next poll, and it
+ * never blocks the request. Each step logs and swallows its own failure.
  */
 @Component
 @RequiredArgsConstructor

@@ -13,6 +13,11 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+/**
+ * Publishes outbox rows to Kafka, oldest first. Delivery is at-least-once: a send that timed out here may still
+ * land later, and the retry then publishes the row again. That is harmless because the KDS consumer reloads the
+ * current order state instead of applying the event.
+ */
 @Component
 @RequiredArgsConstructor
 @Slf4j
@@ -26,8 +31,10 @@ public class OutboxRelay {
     private final KafkaTemplate<String, String> kafka;
     private final TransactionTemplate tx;
 
-    // One thread runs every drain from kick(), so drains never overlap inside this JVM and a request thread
-    // never waits on Kafka.
+    // ponytail: single-instance assumption (improvement plan section 2). One thread runs every drain, so drains
+    // never overlap inside this JVM and a request thread never waits on Kafka. With more than one backend
+    // instance, take a Postgres advisory lock in drain(): SKIP LOCKED below only keeps instances from publishing
+    // the same row twice, it does not stop them from interleaving rows of one order.
     private final ExecutorService executor = Executors.newSingleThreadExecutor(r -> {
         Thread t = new Thread(r, "outbox-relay");
         t.setDaemon(true);
@@ -62,6 +69,9 @@ public class OutboxRelay {
                 try {
                     kafka.send(row.topic(), row.key(), row.payload()).get(ACK_SECONDS, TimeUnit.SECONDS);
                 } catch (Exception e) {
+                    if (e instanceof InterruptedException) {
+                        Thread.currentThread().interrupt();
+                    }
                     log.warn("Outbox publish to {} failed for {}", row.topic(), row.key(), e);
                     outbox.markFailed(row.id(), e.toString());
                     return; // later rows must not overtake this one
