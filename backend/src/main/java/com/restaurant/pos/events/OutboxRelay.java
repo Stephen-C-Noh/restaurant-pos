@@ -26,7 +26,7 @@ public class OutboxRelay {
             } catch (Exception e) {
                 log.warn("Outbox publish to {} failed for {}", row.topic(), row.key(), e);
                 outbox.markFailed(row.id(), e.toString());
-                continue;
+                return; // later rows must not overtake this one
             }
             outbox.markProcessed(row.id());
         }

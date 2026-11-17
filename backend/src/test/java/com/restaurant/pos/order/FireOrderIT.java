@@ -407,14 +407,15 @@ class FireOrderIT extends IntegrationTest {
 
     @Test
     void fire_whenKafkaFails_is200_rowStaysPending_attemptsGrow_andItIsPublishedOnceKafkaIsBack() throws Exception {
+        UUID orderId = orderWithItems("DRAFT", BURGER);
+        // Only this order's send fails: rows other tests left PENDING must not stop the batch before ours.
         AtomicBoolean down = new AtomicBoolean(true);
         doAnswer(inv -> {
-            if (down.get()) {
+            if (down.get() && orderId.toString().equals(inv.getArgument(1))) {
                 throw new IllegalStateException("kafka down");
             }
             return inv.callRealMethod();
         }).when(outboxKafkaTemplate).send(anyString(), anyString(), anyString());
-        UUID orderId = orderWithItems("DRAFT", BURGER);
 
         fire(orderId).andExpect(status().isOk()).andExpect(jsonPath("$.status").value("FIRED"));
 
@@ -453,6 +454,30 @@ class FireOrderIT extends IntegrationTest {
         assertThat(row.get("status")).isEqualTo("PENDING");
         assertThat((Integer) row.get("attempts")).isEqualTo(1);
         assertThat((String) row.get("last_error")).contains("TimeoutException");
+    }
+
+    @Test
+    void whenTheFireEventCannotBeSent_theLaterItemEventWaitsBehindIt() throws Exception {
+        UUID orderId = orderWithItems("DRAFT", BURGER);
+        // Only this order's fire event fails: rows other tests left PENDING must not stop the batch before ours.
+        doAnswer(inv -> {
+            if (ORDER_FIRED_TOPIC.equals(inv.getArgument(0)) && orderId.toString().equals(inv.getArgument(1))) {
+                throw new IllegalStateException("kafka down");
+            }
+            return inv.callRealMethod();
+        }).when(outboxKafkaTemplate).send(anyString(), anyString(), anyString());
+
+        fire(orderId).andExpect(status().isOk());
+        itemStatus(orderId, itemIds(orderId).get(0), "PREPARING").andExpect(status().isOk());
+
+        List<Map<String, Object>> rows = outboxRows(orderId);
+        assertThat(rows).extracting(r -> r.get("event_type")).containsExactly("OrderFired", "ItemStatusChanged");
+        // The fire row keeps failing; the item row must not jump the queue, or the retry would reorder them.
+        assertThat(rows.get(0).get("status")).isEqualTo("PENDING");
+        assertThat((Integer) rows.get(0).get("attempts")).isGreaterThanOrEqualTo(2);
+        assertThat(rows.get(1).get("status")).isEqualTo("PENDING");
+        assertThat(rows.get(1).get("attempts")).isEqualTo(0);
+        assertThat(records(ITEM_STATUS_TOPIC, orderId, Duration.ofSeconds(1))).isEmpty();
     }
 
     // --- helpers ------------------------------------------------------------
