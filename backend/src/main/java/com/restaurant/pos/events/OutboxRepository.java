@@ -36,11 +36,11 @@ public class OutboxRepository {
                 event.getAggregateType(), event.getAggregateId(), event.getEventType(), payload, topic);
     }
 
-    /** Oldest pending rows first. */
-    public List<Row> pending(int limit) {
+    /** Oldest pending rows, locked until the caller's transaction ends; rows another drain holds are skipped. */
+    public List<Row> lockPending(int limit) {
         return jdbc.query("""
                 SELECT id, topic, aggregate_id, payload::text FROM outbox_events
-                WHERE status = 'PENDING' ORDER BY created_at LIMIT ?""",
+                WHERE status = 'PENDING' ORDER BY created_at LIMIT ? FOR UPDATE SKIP LOCKED""",
                 (rs, i) -> new Row(rs.getObject(1, UUID.class), rs.getString(2), rs.getString(3), rs.getString(4)),
                 limit);
     }

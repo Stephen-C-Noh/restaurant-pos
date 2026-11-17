@@ -51,10 +51,12 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.fail;
 import static org.awaitility.Awaitility.await;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -509,6 +511,52 @@ class FireOrderIT extends IntegrationTest {
         ConsumerRecord<String, String> fired = records(ORDER_FIRED_TOPIC, orderId, Duration.ofSeconds(10)).get(0);
         ConsumerRecord<String, String> item = records(ITEM_STATUS_TOPIC, orderId, Duration.ofSeconds(10)).get(0);
         assertThat(fired.timestamp()).isLessThanOrEqualTo(item.timestamp());
+    }
+
+    @Test
+    void concurrentDrains_neverWaitForEachOther_andPublishEachRowOnce() throws Exception {
+        String topic = "outbox-it-concurrency"; // no consumer in the app
+        List<UUID> keys = List.of(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID());
+        // The first drain sits in send() holding the row locks until released.
+        CountDownLatch inSend = new CountDownLatch(1);
+        CountDownLatch release = new CountDownLatch(1);
+        doAnswer(inv -> {
+            if (topic.equals(inv.getArgument(0))) {
+                inSend.countDown();
+                release.await(15, TimeUnit.SECONDS);
+            }
+            return inv.callRealMethod();
+        }).when(outboxKafkaTemplate).send(anyString(), anyString(), anyString());
+        for (UUID key : keys) {
+            jdbc.update("""
+                    INSERT INTO outbox_events (aggregate_type, aggregate_id, event_type, payload, topic)
+                    VALUES ('Order', ?, 'IT', '{}'::jsonb, ?)""", key.toString(), topic);
+        }
+        ExecutorService pool = Executors.newFixedThreadPool(2);
+        try {
+            Future<?> first = pool.submit(relay::drain);
+            assertThat(inSend.await(10, TimeUnit.SECONDS)).isTrue();
+
+            Future<?> second = pool.submit(relay::drain);
+            try {
+                // With the rows locked, a second drain must skip them and return, not queue up behind the lock.
+                second.get(3, TimeUnit.SECONDS);
+            } catch (TimeoutException e) {
+                fail("the second drain waited for the first one instead of skipping its locked rows");
+            }
+
+            release.countDown();
+            first.get(15, TimeUnit.SECONDS);
+        } finally {
+            release.countDown();
+            pool.shutdownNow();
+        }
+
+        assertThat(jdbc.queryForList("SELECT status FROM outbox_events WHERE topic = ?", String.class, topic))
+                .containsExactly("PROCESSED", "PROCESSED", "PROCESSED");
+        for (UUID key : keys) {
+            assertThat(records(topic, key, Duration.ofSeconds(10))).hasSize(1);
+        }
     }
 
     // --- helpers ------------------------------------------------------------
