@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import jakarta.annotation.PreDestroy;
 import org.springframework.kafka.core.KafkaTemplate;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -46,6 +47,12 @@ public class OutboxRelay {
                 }
             });
         }
+    }
+
+    /** Safety net for rows whose kick was lost (crash after commit) or whose send failed. */
+    @Scheduled(fixedDelay = 1000)
+    void poll() {
+        kick();
     }
 
     /** One batch in one transaction, so the rows stay locked for other drains until it commits. */

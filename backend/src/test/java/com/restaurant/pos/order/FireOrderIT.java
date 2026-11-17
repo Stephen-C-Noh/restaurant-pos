@@ -22,7 +22,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.MediaType;
 import org.springframework.kafka.core.DefaultKafkaConsumerFactory;
-import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.test.EmbeddedKafkaBroker;
 import org.springframework.kafka.test.utils.KafkaTestUtils;
 import org.springframework.messaging.Message;
@@ -30,7 +29,6 @@ import org.springframework.messaging.MessageChannel;
 import org.springframework.messaging.simp.SimpMessageHeaderAccessor;
 import org.springframework.messaging.support.AbstractSubscribableChannel;
 import org.springframework.messaging.support.ChannelInterceptor;
-import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.test.web.servlet.ResultActions;
 
 import javax.sql.DataSource;
@@ -90,8 +88,6 @@ class FireOrderIT extends IntegrationTest {
     @Autowired private DataSource dataSource;
     @Autowired private OutboxRelay relay;
     @Autowired @Qualifier("brokerChannel") private AbstractSubscribableChannel brokerChannel;
-    // Delegates to the real template unless a test stubs it; reset after each test.
-    @MockitoSpyBean private KafkaTemplate<String, String> outboxKafkaTemplate;
 
     private final List<Message<?>> sent = new CopyOnWriteArrayList<>();
     /** fired_at of the pushed order, read over a separate connection at the moment each /topic/orders message is sent. */
@@ -454,10 +450,13 @@ class FireOrderIT extends IntegrationTest {
         // The row stays locked while we wait, so the wait must be far below Kafka's 120 s delivery timeout.
         assertTimeoutPreemptively(Duration.ofSeconds(15), relay::drain);
 
-        Map<String, Object> row = outboxRows(key).get(0);
-        assertThat(row.get("status")).isEqualTo("PENDING");
-        assertThat((Integer) row.get("attempts")).isEqualTo(1);
-        assertThat((String) row.get("last_error")).contains("TimeoutException");
+        // The relay's own poll may have taken the row first; either way the send gives up after the bound.
+        await().atMost(Duration.ofSeconds(15)).untilAsserted(() -> {
+            Map<String, Object> row = outboxRows(key).get(0);
+            assertThat(row.get("status")).isEqualTo("PENDING");
+            assertThat((Integer) row.get("attempts")).isGreaterThanOrEqualTo(1);
+            assertThat((String) row.get("last_error")).contains("TimeoutException");
+        });
     }
 
     @Test
@@ -582,6 +581,19 @@ class FireOrderIT extends IntegrationTest {
         await().atMost(Duration.ofSeconds(10)).untilAsserted(() ->
                 assertThat(outboxRows(orderId).get(0).get("status")).isEqualTo("PROCESSED"));
         assertThat(records(ORDER_FIRED_TOPIC, orderId, Duration.ofSeconds(10))).hasSize(1);
+    }
+
+    @Test
+    void aPendingRowWithoutAnyKick_isPublishedByThePoll() throws Exception {
+        String topic = "outbox-it-poll"; // no consumer in the app
+        UUID key = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO outbox_events (aggregate_type, aggregate_id, event_type, payload, topic)
+                VALUES ('Order', ?, 'IT', '{}'::jsonb, ?)""", key.toString(), topic);
+
+        await().atMost(Duration.ofSeconds(10)).untilAsserted(() ->
+                assertThat(outboxRows(key).get(0).get("status")).isEqualTo("PROCESSED"));
+        assertThat(records(topic, key, Duration.ofSeconds(10))).hasSize(1);
     }
 
     // --- helpers ------------------------------------------------------------
