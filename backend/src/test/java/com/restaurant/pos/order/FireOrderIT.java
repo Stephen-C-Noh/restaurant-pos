@@ -33,7 +33,12 @@ import org.springframework.messaging.support.ChannelInterceptor;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.test.web.servlet.ResultActions;
 
+import javax.sql.DataSource;
 import java.nio.charset.StandardCharsets;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.Timestamp;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
@@ -74,15 +79,21 @@ class FireOrderIT extends IntegrationTest {
 
     @Autowired private EmbeddedKafkaBroker kafka;
     @Autowired private ObjectMapper json;
+    @Autowired private DataSource dataSource;
     @Autowired @Qualifier("brokerChannel") private AbstractSubscribableChannel brokerChannel;
     // Delegates to the real template unless a test stubs it; reset after each test.
     @MockitoSpyBean private KafkaTemplate<String, DomainEvent> kafkaTemplate;
 
     private final List<Message<?>> sent = new CopyOnWriteArrayList<>();
+    /** fired_at of the pushed order, read over a separate connection at the moment each /topic/orders message is sent. */
+    private final List<Timestamp> firedAtSeenAtPush = new CopyOnWriteArrayList<>();
     private final ChannelInterceptor capture = new ChannelInterceptor() {
         @Override
         public Message<?> preSend(Message<?> message, MessageChannel channel) {
             sent.add(message);
+            if ("/topic/orders".equals(SimpMessageHeaderAccessor.getDestination(message.getHeaders()))) {
+                firedAtSeenAtPush.add(firedAtOverNewConnection(message));
+            }
             return message;
         }
     };
@@ -284,6 +295,15 @@ class FireOrderIT extends IntegrationTest {
         assertThat(topicOrders(orderId)).hasSize(1);
     }
 
+    @Test
+    void fire_pushesOnlyAfterTheFireIsVisibleToOtherConnections() throws Exception {
+        UUID orderId = orderWithItems("DRAFT", BURGER);
+
+        fire(orderId).andExpect(status().isOk());
+
+        assertThat(firedAtSeenAtPush).hasSize(1).doesNotContainNull();
+    }
+
     // --- helpers ------------------------------------------------------------
 
     /** An order with one PENDING item per menu item id, inserted via SQL. */
@@ -319,6 +339,20 @@ class FireOrderIT extends IntegrationTest {
         assertThat(itemStatuses(orderId)).containsExactly(itemStatuses);
         assertThat(records(ORDER_FIRED_TOPIC, orderId, Duration.ofSeconds(2))).isEmpty();
         assertThat(topicOrders(orderId)).isEmpty();
+    }
+
+    /** A raw pooled connection is not bound to the request's transaction, so it only sees committed rows. */
+    private Timestamp firedAtOverNewConnection(Message<?> message) {
+        try (Connection c = dataSource.getConnection();
+             PreparedStatement ps = c.prepareStatement("SELECT fired_at FROM orders WHERE id = ?")) {
+            JsonNode order = json.readTree(new String((byte[]) message.getPayload(), StandardCharsets.UTF_8));
+            ps.setObject(1, UUID.fromString(order.get("id").asText()));
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() ? rs.getTimestamp(1) : null;
+            }
+        } catch (Exception e) {
+            throw new AssertionError("Could not read fired_at at push time", e);
+        }
     }
 
     private Object firedAt(UUID orderId) {

@@ -2,7 +2,6 @@ package com.restaurant.pos.order;
 
 import com.restaurant.pos.common.BusinessRuleException;
 import com.restaurant.pos.common.ResourceNotFoundException;
-import com.restaurant.pos.events.EventPublisher;
 import com.restaurant.pos.table.TableRepository;
 import com.restaurant.pos.table.TableStatus;
 import com.restaurant.pos.events.ItemStatusChangedEvent;
@@ -13,7 +12,7 @@ import com.restaurant.pos.menu.MenuItem;
 import com.restaurant.pos.menu.MenuService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.messaging.simp.SimpMessagingTemplate;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -40,8 +39,7 @@ public class OrderService {
     private final OrderRepository orderRepository;
     private final OrderItemRepository orderItemRepository;
     private final MenuService menuService;
-    private final EventPublisher eventPublisher;
-    private final SimpMessagingTemplate messagingTemplate;
+    private final ApplicationEventPublisher events;
     private final TableRepository tableRepository;
 
     @Transactional(readOnly = true)
@@ -235,7 +233,8 @@ public class OrderService {
      */
     @Transactional
     public OrderResponse fireOrder(UUID id) {
-        Order order = orderRepository.findById(id)
+        // Row lock: a concurrent fire waits, then sees FIRED and gets 409.
+        Order order = orderRepository.findByIdForUpdate(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Order not found: " + id));
 
         OrderStatus orderStatus = order.getStatus();
@@ -290,11 +289,10 @@ public class OrderService {
                 itemsBySection
         );
 
-        eventPublisher.publishOrderFiredEvent(event);
-
-        // publish to WebSocket for real-time UI updates
-        messagingTemplate.convertAndSend("/topic/orders", toOrderResponse(order));
-        return toOrderResponse(order);
+        // Kafka publish and WebSocket push happen after commit (see OrderEvents)
+        OrderResponse response = toOrderResponse(order);
+        events.publishEvent(new OrderChanged(event, response));
+        return response;
     }
 
     /**
@@ -347,12 +345,10 @@ public class OrderService {
                 newStatus
         );
 
-        eventPublisher.publishItemStatusChangedEvent(event);
-
         // get Updated Order info
         Order updatedOrder = orderRepository.findById(orderId).orElseThrow(() -> new ResourceNotFoundException("Order not found: " + orderId));
-        // WebSocket Broadcast.
-        messagingTemplate.convertAndSend("/topic/orders", toOrderResponse(updatedOrder));
+        // Kafka publish and WebSocket push happen after commit (see OrderEvents)
+        events.publishEvent(new OrderChanged(event, toOrderResponse(updatedOrder)));
 
         return toOrderItemResponse(item);
     }

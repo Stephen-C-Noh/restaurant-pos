@@ -37,6 +37,8 @@ public class KafkaConfig {
         config.put(ProducerConfig.RETRIES_CONFIG, 3);
         config.put(ProducerConfig.ENABLE_IDEMPOTENCE_CONFIG, true);
         config.put(JsonSerializer.ADD_TYPE_INFO_HEADERS, false);
+        // ponytail: sync send capped at 1s; go async if that 1s matters
+        config.put(ProducerConfig.MAX_BLOCK_MS_CONFIG, 1000);
         return new DefaultKafkaProducerFactory<>(config);
     }
 
