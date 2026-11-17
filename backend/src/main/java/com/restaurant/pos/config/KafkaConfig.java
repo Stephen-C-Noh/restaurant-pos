@@ -47,6 +47,25 @@ public class KafkaConfig {
         return new KafkaTemplate<>(producerFactory());
     }
 
+    // Outbox relay: sends the stored JSON string as is.
+    @Bean
+    public ProducerFactory<String, String> outboxProducerFactory() {
+        Map<String, Object> config = new HashMap<>();
+        config.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
+        config.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
+        config.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
+        config.put(ProducerConfig.ACKS_CONFIG, "all");
+        config.put(ProducerConfig.RETRIES_CONFIG, 3);
+        config.put(ProducerConfig.ENABLE_IDEMPOTENCE_CONFIG, true);
+        config.put(ProducerConfig.MAX_BLOCK_MS_CONFIG, 1000);
+        return new DefaultKafkaProducerFactory<>(config);
+    }
+
+    @Bean
+    public KafkaTemplate<String, String> outboxKafkaTemplate() {
+        return new KafkaTemplate<>(outboxProducerFactory());
+    }
+
     // Consumer Configuration - Simple!
     // Consumer Factory for OrderFiredEvent
     @Bean

@@ -3,9 +3,9 @@ package com.restaurant.pos.order;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.restaurant.pos.IntegrationTest;
-import com.restaurant.pos.events.DomainEvent;
 import com.restaurant.pos.events.ItemStatusChangedEvent;
 import com.restaurant.pos.events.OrderFiredEvent;
+import com.restaurant.pos.events.OutboxRelay;
 import com.restaurant.pos.menu.KitchenSection;
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
@@ -53,7 +53,6 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doThrow;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -80,9 +79,10 @@ class FireOrderIT extends IntegrationTest {
     @Autowired private EmbeddedKafkaBroker kafka;
     @Autowired private ObjectMapper json;
     @Autowired private DataSource dataSource;
+    @Autowired private OutboxRelay relay;
     @Autowired @Qualifier("brokerChannel") private AbstractSubscribableChannel brokerChannel;
     // Delegates to the real template unless a test stubs it; reset after each test.
-    @MockitoSpyBean private KafkaTemplate<String, DomainEvent> kafkaTemplate;
+    @MockitoSpyBean private KafkaTemplate<String, String> outboxKafkaTemplate;
 
     private final List<Message<?>> sent = new CopyOnWriteArrayList<>();
     /** fired_at of the pushed order, read over a separate connection at the moment each /topic/orders message is sent. */
@@ -262,7 +262,7 @@ class FireOrderIT extends IntegrationTest {
     @Test
     void fire_whenKafkaSendThrows_is200_orderFired_andPushed() throws Exception {
         doThrow(new IllegalStateException("kafka down"))
-                .when(kafkaTemplate).send(anyString(), anyString(), any(DomainEvent.class));
+                .when(outboxKafkaTemplate).send(anyString(), anyString(), anyString());
         UUID orderId = orderWithItems("DRAFT", BURGER);
 
         fire(orderId)
@@ -316,8 +316,7 @@ class FireOrderIT extends IntegrationTest {
         assertThat(rows).hasSize(1);
         assertThat(rows.get(0)).containsEntry("aggregate_type", "Order")
                 .containsEntry("event_type", "OrderFired")
-                .containsEntry("topic", ORDER_FIRED_TOPIC)
-                .containsEntry("status", "PENDING");
+                .containsEntry("topic", ORDER_FIRED_TOPIC);
         assertThat(json.readTree((String) rows.get(0).get("payload")).get("orderId").asText())
                 .isEqualTo(orderId.toString());
     }
@@ -375,10 +374,28 @@ class FireOrderIT extends IntegrationTest {
         assertThat(rows).hasSize(1);
         assertThat(rows.get(0)).containsEntry("aggregate_type", "Order")
                 .containsEntry("event_type", "ItemStatusChanged")
-                .containsEntry("topic", ITEM_STATUS_TOPIC)
-                .containsEntry("status", "PENDING");
+                .containsEntry("topic", ITEM_STATUS_TOPIC);
         assertThat(json.readTree((String) rows.get(0).get("payload")).get("itemId").asText())
                 .isEqualTo(itemId.toString());
+    }
+
+    @Test
+    void drain_publishesPendingRowKeyedByAggregateId_andMarksItProcessed() throws Exception {
+        String topic = "outbox-it-drain"; // no consumer in the app
+        UUID key = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO outbox_events (aggregate_type, aggregate_id, event_type, payload, topic)
+                VALUES ('Order', ?, 'IT', '{"hello": "outbox"}'::jsonb, ?)""", key.toString(), topic);
+
+        relay.drain();
+
+        Map<String, Object> row = outboxRows(key).get(0);
+        assertThat(row.get("status")).isEqualTo("PROCESSED");
+        assertThat(row.get("processed_at")).isNotNull();
+        List<ConsumerRecord<String, String>> records = records(topic, key, Duration.ofSeconds(10));
+        assertThat(records).hasSize(1);
+        assertThat(records.get(0).key()).isEqualTo(key.toString());
+        assertThat(json.readTree(records.get(0).value()).get("hello").asText()).isEqualTo("outbox");
     }
 
     // --- helpers ------------------------------------------------------------
