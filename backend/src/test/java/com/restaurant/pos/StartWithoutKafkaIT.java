@@ -1,12 +1,19 @@
 package com.restaurant.pos;
 
+import com.restaurant.pos.kds.KdsConsumerStarter;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.kafka.config.KafkaListenerEndpointRegistry;
+import org.springframework.kafka.listener.MessageListenerContainer;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 
+import java.time.Duration;
 import java.util.UUID;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.awaitility.Awaitility.await;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -21,6 +28,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  */
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 class StartWithoutKafkaIT extends IntegrationTest {
+
+    @Autowired private KafkaListenerEndpointRegistry registry;
+    @Autowired private KdsConsumerStarter starter;
 
     private static final String BURGER = "bb4d597e-0524-4ac7-ace6-749d8a36d38f";
 
@@ -40,5 +50,16 @@ class StartWithoutKafkaIT extends IntegrationTest {
         mvc.perform(authed(post("/api/orders/" + orderId + "/fire"), "server1"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("FIRED"));
+    }
+
+    @Test
+    void aFailedConsumerStart_leavesTheContainersStopped_soTheNextTickRetries() {
+        assertThat(registry.getListenerContainers()).isNotEmpty();
+
+        starter.startConsumers(); // fails on the unresolvable host
+
+        // Awaited because the scheduled tick may be mid-attempt; a container left running would never clear.
+        await().atMost(Duration.ofSeconds(10)).untilAsserted(() ->
+                assertThat(registry.getListenerContainers()).noneMatch(MessageListenerContainer::isRunning));
     }
 }

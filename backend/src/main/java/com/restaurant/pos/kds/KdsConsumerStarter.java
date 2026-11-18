@@ -30,6 +30,7 @@ public class KdsConsumerStarter {
                 container.start();
             } catch (Exception e) {
                 log.warn("KDS consumer {} not started, retrying: {}", container.getListenerId(), e.getMessage());
+                container.stop();
             }
         }
     }
