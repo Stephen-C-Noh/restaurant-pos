@@ -97,6 +97,18 @@ class OrderCancelIT extends IntegrationTest {
     }
 
     @Test
+    void withoutToken_is401_andChangesNothing() throws Exception {
+        UUID orderId = insertOrder("TAKEOUT", "DRAFT", "10.00", null);
+
+        mvc.perform(post("/api/orders/" + orderId + "/cancel")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"reason\":\"Anonymous\"}"))
+                .andExpect(status().isUnauthorized());
+
+        assertNotCancelled(orderId, "DRAFT");
+    }
+
+    @Test
     void aMissingOrder_is404() throws Exception {
         cancel(UUID.randomUUID(), "manager1", "{\"reason\":\"Oops\"}").andExpect(status().isNotFound());
     }
