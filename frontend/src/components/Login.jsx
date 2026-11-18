@@ -21,11 +21,7 @@ function Login() {
         fullName: data.fullName,
         role: data.role,
       })
-      if (data.role === 'SERVER') {
-        navigate('/pos')
-      } else {
-        navigate('/admin')
-      }
+      navigate({ SERVER: '/pos', KITCHEN: '/kds' }[data.role] ?? '/admin')
     } catch (err) {
       const msg = err.response?.data?.message || 'Invalid PIN. Please try again.'
       setError(msg)
