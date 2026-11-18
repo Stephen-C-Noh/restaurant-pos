@@ -663,6 +663,20 @@ class FireOrderIT extends IntegrationTest {
         assertThat(topicOrders(stale)).isEmpty();
     }
 
+    @ParameterizedTest
+    @ValueSource(strings = {ORDER_FIRED_TOPIC, ITEM_STATUS_TOPIC})
+    void anEventForAMissingOrder_doesNotStopTheNextOne(String topic) throws Exception {
+        UUID missing = UUID.randomUUID();
+        UUID sentinel = orderWithItems("FIRED", BURGER);
+        String key = UUID.randomUUID().toString(); // same key: same partition, so the sentinel is consumed after the missing one
+
+        outboxKafkaTemplate.send(topic, key, eventPayload(topic, missing)).get(10, TimeUnit.SECONDS);
+        outboxKafkaTemplate.send(topic, key, eventPayload(topic, sentinel)).get(10, TimeUnit.SECONDS);
+
+        await().atMost(Duration.ofSeconds(10)).untilAsserted(() -> assertThat(topicOrders(sentinel)).hasSize(1));
+        assertThat(topicOrders(missing)).isEmpty();
+    }
+
     // --- helpers ------------------------------------------------------------
 
     /** An order with one PENDING item per menu item id, inserted via SQL. */
