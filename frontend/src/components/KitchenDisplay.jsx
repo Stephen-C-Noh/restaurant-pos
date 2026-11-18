@@ -145,7 +145,13 @@ function KitchenDisplay() {
                 },
             onDisconnect: () => {
                 console.log('WebSocket Disconnected');
-                }
+                },
+            // The server sends a STOMP ERROR only when it rejects the token (e.g. expired after 24 h).
+            // Log out: the route then shows the login page instead of a screen that silently stopped updating.
+            onStompError: (frame) => {
+                console.log('WebSocket rejected: ', frame.headers.message);
+                useAuthStore.getState().logout();
+            }
             });
 
         client.activate();

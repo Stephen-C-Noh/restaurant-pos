@@ -65,4 +65,14 @@ describe('KitchenDisplay', () => {
 
         expect(stompConfig.connectHeaders).toEqual({ Authorization: 'Bearer jwt-123' });
     });
+
+    it('logs out when the server rejects the STOMP connection (e.g. an expired token), so the route sends it to login', async () => {
+        useAuthStore.setState({ token: 'expired', user: { role: 'KITCHEN' } });
+        render(<KitchenDisplay />);
+        await waitFor(() => expect(api.get).toHaveBeenCalled());
+
+        act(() => stompConfig.onStompError({ headers: { message: 'Invalid token' } }));
+
+        expect(useAuthStore.getState().token).toBeNull();
+    });
 });
