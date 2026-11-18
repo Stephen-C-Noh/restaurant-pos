@@ -2,6 +2,8 @@ package com.restaurant.pos.order;
 
 import com.restaurant.pos.IntegrationTest;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.ResultActions;
 
@@ -31,6 +33,22 @@ class OrderCancelIT extends IntegrationTest {
                 .isEqualTo("Guest left");
         assertThat(jdbc.queryForObject("SELECT cancelled_by FROM orders WHERE id = ?", UUID.class, orderId))
                 .hasToString(SERVER_ID);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"{}", "{\"reason\":\"\"}", "{\"reason\":\"   \"}"})
+    void aMissingOrBlankReason_is400_andChangesNothing(String body) throws Exception {
+        UUID orderId = insertOrder("TAKEOUT", "DRAFT", "10.00", null);
+
+        cancel(orderId, "server1", body).andExpect(status().isBadRequest());
+
+        assertNotCancelled(orderId, "DRAFT");
+    }
+
+    private void assertNotCancelled(UUID orderId, String status) {
+        assertThat(orderStatus(orderId)).isEqualTo(status);
+        assertThat(jdbc.queryForObject("SELECT cancel_reason FROM orders WHERE id = ?", String.class, orderId)).isNull();
+        assertThat(jdbc.queryForObject("SELECT cancelled_by FROM orders WHERE id = ?", UUID.class, orderId)).isNull();
     }
 
     private ResultActions cancel(UUID orderId, String username, String body) throws Exception {
