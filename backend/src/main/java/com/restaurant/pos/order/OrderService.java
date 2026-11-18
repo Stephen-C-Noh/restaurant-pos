@@ -59,7 +59,7 @@ public class OrderService {
     }
     @Transactional(readOnly = true)
     public List<OrderResponse> getActiveOrders() {
-        return orderRepository.findByStatus(OrderStatus.FIRED)
+        return orderRepository.findByStatusIn(KITCHEN_VISIBLE)
                 .stream()
                 .map(this::toOrderResponse)
                 .collect(Collectors.toList());

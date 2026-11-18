@@ -251,21 +251,20 @@ class FireOrderIT extends IntegrationTest {
     // --- KDS initial load ---------------------------------------------------
 
     @Test
-    void activeOrders_includesFired_excludesDraftSubmittedCompletedCancelled() throws Exception {
-        List<String> notFired = List.of("DRAFT", "SUBMITTED", "COMPLETED", "CANCELLED");
-        UUID fired = insertOrder("TAKEOUT", "FIRED", "1.00", null);
-        List<UUID> others = notFired.stream().map(s -> insertOrder("TAKEOUT", s, "1.00", null)).toList();
+    void activeOrders_returnsFiredPreparingReady_notDraftSubmittedCompletedCancelled() throws Exception {
+        List<UUID> active = List.of("FIRED", "PREPARING", "READY").stream()
+                .map(s -> insertOrder("TAKEOUT", s, "1.00", null)).toList();
+        List<UUID> inactive = List.of("DRAFT", "SUBMITTED", "COMPLETED", "CANCELLED").stream()
+                .map(s -> insertOrder("TAKEOUT", s, "1.00", null)).toList();
 
         String body = mvc.perform(authed(get("/api/orders/active"), "kitchen1"))
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString();
 
         List<String> ids = new ArrayList<>();
-        json.readTree(body).forEach(o -> {
-            ids.add(o.get("id").asText());
-        });
-        assertThat(ids).contains(fired.toString());
-        assertThat(ids).doesNotContainAnyElementsOf(others.stream().map(UUID::toString).toList());
+        json.readTree(body).forEach(o -> ids.add(o.get("id").asText()));
+        assertThat(ids).containsAll(active.stream().map(UUID::toString).toList());
+        assertThat(ids).doesNotContainAnyElementsOf(inactive.stream().map(UUID::toString).toList());
     }
 
     // --- Phase 2: fire commits independently of Kafka; concurrent fires are serialized ---

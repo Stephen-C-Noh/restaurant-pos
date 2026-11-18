@@ -17,7 +17,7 @@ import java.util.Optional;
 public interface OrderRepository extends JpaRepository<Order, UUID> {
     Optional<Order> findByOrderNumber(String orderNumber);
     Optional<Order> findByIdempotencyKey(String idempotencyKey);
-    List<Order> findByStatus(OrderStatus status);
+    List<Order> findByStatusIn(Collection<OrderStatus> statuses);
     long countByCreatedAtAfter(Instant timestamp);
 
     List<Order> findTop10ByOrderByCreatedAtDesc();
