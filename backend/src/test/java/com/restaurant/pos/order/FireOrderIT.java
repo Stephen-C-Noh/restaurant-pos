@@ -306,6 +306,16 @@ class FireOrderIT extends IntegrationTest {
         assertThat(json.readTree(body).get("message").asText()).contains(expectedHint);
     }
 
+    @Test
+    void patchStatus_withoutToken_is401_andChangesNothing() throws Exception {
+        UUID orderId = insertOrder("TAKEOUT", "FIRED", "1.00", null);
+
+        mvc.perform(patch("/api/orders/" + orderId + "/status").param("status", "PREPARING"))
+                .andExpect(status().isUnauthorized());
+
+        assertThat(orderStatus(orderId)).isEqualTo("FIRED");
+    }
+
     // --- Phase 2: fire commits independently of Kafka; concurrent fires are serialized ---
 
     @Test
