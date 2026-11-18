@@ -747,13 +747,6 @@ class FireOrderIT extends IntegrationTest {
                         OrderItemStatus.FIRED, OrderItemStatus.PREPARING));
     }
 
-    /** Outbox rows of one order in creation order. */
-    private List<Map<String, Object>> outboxRows(UUID orderId) {
-        return jdbc.queryForList("""
-                SELECT aggregate_type, event_type, topic, status, attempts, last_error, processed_at, payload::text AS payload
-                FROM outbox_events WHERE aggregate_id = ? ORDER BY created_at, id""", orderId.toString());
-    }
-
     private ResultActions fire(UUID orderId) throws Exception {
         return mvc.perform(authed(post("/api/orders/" + orderId + "/fire"), "server1"));
     }

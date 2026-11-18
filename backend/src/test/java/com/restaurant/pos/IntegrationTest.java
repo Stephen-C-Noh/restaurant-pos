@@ -20,6 +20,8 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
 import org.testcontainers.containers.PostgreSQLContainer;
 
 import java.math.BigDecimal;
+import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -81,6 +83,13 @@ public abstract class IntegrationTest {
         jdbc.update("INSERT INTO tables (id, table_number, capacity, status) VALUES (?, ?, 4, ?)",
                 id, "X" + id.toString().substring(0, 8), status);
         return id;
+    }
+
+    /** Outbox rows of one order in creation order. */
+    protected List<Map<String, Object>> outboxRows(UUID orderId) {
+        return jdbc.queryForList("""
+                SELECT aggregate_type, event_type, topic, status, attempts, last_error, processed_at, payload::text AS payload
+                FROM outbox_events WHERE aggregate_id = ? ORDER BY created_at, id""", orderId.toString());
     }
 
     protected MockHttpServletRequestBuilder authed(MockHttpServletRequestBuilder req, String username) {
