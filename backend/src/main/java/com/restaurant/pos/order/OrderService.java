@@ -175,6 +175,9 @@ public class OrderService {
     public OrderResponse cancel(UUID id, String reason, UUID userId) {
         Order order = orderRepository.findByIdForUpdate(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Order not found: " + id));
+        if (TERMINAL.contains(order.getStatus())) {
+            throw new BusinessRuleException("Order is already " + order.getStatus());
+        }
         order.setCancelReason(reason);
         order.setCancelledBy(userId);
         close(order, OrderStatus.CANCELLED);

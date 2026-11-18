@@ -45,6 +45,16 @@ class OrderCancelIT extends IntegrationTest {
         assertNotCancelled(orderId, "DRAFT");
     }
 
+    @ParameterizedTest
+    @ValueSource(strings = {"COMPLETED", "CANCELLED"})
+    void aTerminalOrder_is409_andChangesNothing(String from) throws Exception {
+        UUID orderId = insertOrder("TAKEOUT", from, "10.00", null);
+
+        cancel(orderId, "manager1", "{\"reason\":\"Too late\"}").andExpect(status().isConflict());
+
+        assertNotCancelled(orderId, from);
+    }
+
     private void assertNotCancelled(UUID orderId, String status) {
         assertThat(orderStatus(orderId)).isEqualTo(status);
         assertThat(jdbc.queryForObject("SELECT cancel_reason FROM orders WHERE id = ?", String.class, orderId)).isNull();
