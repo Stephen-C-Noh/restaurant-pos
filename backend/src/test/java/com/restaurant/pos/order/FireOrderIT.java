@@ -1,7 +1,6 @@
 package com.restaurant.pos.order;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.restaurant.pos.IntegrationTest;
 import com.restaurant.pos.events.ItemStatusChangedEvent;
 import com.restaurant.pos.events.OrderFiredEvent;
@@ -20,7 +19,6 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.MediaType;
 import org.springframework.kafka.core.DefaultKafkaConsumerFactory;
 import org.springframework.kafka.test.EmbeddedKafkaBroker;
@@ -28,7 +26,6 @@ import org.springframework.kafka.test.utils.KafkaTestUtils;
 import org.springframework.messaging.Message;
 import org.springframework.messaging.MessageChannel;
 import org.springframework.messaging.simp.SimpMessageHeaderAccessor;
-import org.springframework.messaging.support.AbstractSubscribableChannel;
 import org.springframework.messaging.support.ChannelInterceptor;
 import org.springframework.test.web.servlet.ResultActions;
 
@@ -86,18 +83,14 @@ class FireOrderIT extends IntegrationTest {
     private static final String ITEM_STATUS_TOPIC = "item-status-events";
 
     @Autowired private EmbeddedKafkaBroker kafka;
-    @Autowired private ObjectMapper json;
     @Autowired private DataSource dataSource;
     @Autowired private OutboxRelay relay;
-    @Autowired @Qualifier("brokerChannel") private AbstractSubscribableChannel brokerChannel;
 
-    private final List<Message<?>> sent = new CopyOnWriteArrayList<>();
     /** fired_at of the pushed order, read over a separate connection at the moment each /topic/orders message is sent. */
     private final List<Timestamp> firedAtSeenAtPush = new CopyOnWriteArrayList<>();
     private final ChannelInterceptor capture = new ChannelInterceptor() {
         @Override
         public Message<?> preSend(Message<?> message, MessageChannel channel) {
-            sent.add(message);
             if ("/topic/orders".equals(SimpMessageHeaderAccessor.getDestination(message.getHeaders()))) {
                 firedAtSeenAtPush.add(firedAtOverNewConnection(message));
             }
@@ -804,28 +797,6 @@ class FireOrderIT extends IntegrationTest {
     private List<UUID> itemIds(UUID orderId) {
         return jdbc.queryForList("SELECT id FROM order_items WHERE order_id = ? ORDER BY created_at, id",
                 UUID.class, orderId);
-    }
-
-    /**
-     * Messages for this order on /topic/orders so far. The push comes from the Kafka consumer thread, so
-     * "a push happened" assertions must wait for it (await); "no push" assertions need a sentinel or an earlier wait.
-     */
-    private List<JsonNode> topicOrders(UUID orderId) {
-        List<JsonNode> out = new ArrayList<>();
-        for (Message<?> m : sent) {
-            if (!"/topic/orders".equals(SimpMessageHeaderAccessor.getDestination(m.getHeaders()))) {
-                continue;
-            }
-            try {
-                JsonNode order = json.readTree(new String((byte[]) m.getPayload(), StandardCharsets.UTF_8));
-                if (orderId.toString().equals(order.path("id").asText())) {
-                    out.add(order);
-                }
-            } catch (Exception e) {
-                throw new AssertionError("Unreadable /topic/orders payload", e);
-            }
-        }
-        return out;
     }
 
     /**
