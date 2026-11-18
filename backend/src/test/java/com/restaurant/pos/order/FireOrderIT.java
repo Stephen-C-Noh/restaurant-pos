@@ -718,6 +718,18 @@ class FireOrderIT extends IntegrationTest {
         assertThat(topicOrders(missing)).isEmpty();
     }
 
+    // --- kitchen display auth -----------------------------------------------
+
+    @Test
+    void fire_withKitchenToken_is403_andChangesNothing() throws Exception {
+        UUID orderId = orderWithItems("DRAFT", BURGER);
+
+        mvc.perform(authed(post("/api/orders/" + orderId + "/fire"), "kitchen1"))
+                .andExpect(status().isForbidden());
+
+        assertNothingHappened(orderId, "DRAFT", "PENDING");
+    }
+
     // --- helpers ------------------------------------------------------------
 
     /** An order with one PENDING item per menu item id, inserted via SQL. */
