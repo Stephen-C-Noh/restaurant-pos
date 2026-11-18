@@ -763,6 +763,19 @@ class FireOrderIT extends IntegrationTest {
         mvc.perform(get("/api/orders/active")).andExpect(status().isUnauthorized());
     }
 
+    @ParameterizedTest
+    @ValueSource(strings = {"CANCELLED", "COMPLETED"})
+    void itemStatus_onAnOrderTheKitchenNoLongerHas_is409_andChangesNothing(String orderStatus) throws Exception {
+        UUID orderId = orderWithItems(orderStatus, BURGER);
+        UUID itemId = itemIds(orderId).get(0);
+        setItemStatus(itemId, "FIRED");
+
+        itemStatus(orderId, itemId, "PREPARING").andExpect(status().isConflict());
+
+        assertThat(itemStatuses(orderId)).containsExactly("FIRED");
+        assertThat(outboxRows(orderId)).isEmpty();
+    }
+
     // --- helpers ------------------------------------------------------------
 
     /** An order with one PENDING item per menu item id, inserted via SQL. */
