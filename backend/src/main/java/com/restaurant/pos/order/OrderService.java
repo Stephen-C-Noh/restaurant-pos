@@ -5,6 +5,7 @@ import com.restaurant.pos.common.ResourceNotFoundException;
 import com.restaurant.pos.table.TableRepository;
 import com.restaurant.pos.table.TableStatus;
 import com.restaurant.pos.events.ItemStatusChangedEvent;
+import com.restaurant.pos.events.OrderCancelledEvent;
 import com.restaurant.pos.events.OrderFiredEvent;
 import com.restaurant.pos.events.OrderItemEvent;
 import com.restaurant.pos.events.OutboxRepository;
@@ -43,6 +44,7 @@ public class OrderService {
 
     private static final String ORDER_FIRED_TOPIC = "order-fired-events";
     private static final String ITEM_STATUS_TOPIC = "item-status-events";
+    private static final String ORDER_CANCELLED_TOPIC = "order-cancelled-events";
 
     /** What the kitchen screen shows. */
     private static final Set<OrderStatus> KITCHEN_VISIBLE =
@@ -185,7 +187,8 @@ public class OrderService {
             throw new BusinessRuleException("Order is already " + order.getStatus());
         }
         // Once the kitchen has the order, only a manager or admin may pull it back.
-        if (KITCHEN_VISIBLE.contains(order.getStatus()) && user.getRole() != Role.MANAGER && user.getRole() != Role.ADMIN) {
+        boolean kitchenHadIt = KITCHEN_VISIBLE.contains(order.getStatus());
+        if (kitchenHadIt && user.getRole() != Role.MANAGER && user.getRole() != Role.ADMIN) {
             throw new AccessDeniedException("Only a manager or admin may cancel an order the kitchen has");
         }
         if (paymentRepository.existsByOrderIdAndStatus(id, PaymentStatus.CAPTURED)) {
@@ -194,6 +197,12 @@ public class OrderService {
         order.setCancelReason(reason);
         order.setCancelledBy(user.getId());
         close(order, OrderStatus.CANCELLED);
+        if (kitchenHadIt) {
+            // Same outbox path as fire: the KDS learns of the cancel and removes the ticket
+            OrderCancelledEvent event = new OrderCancelledEvent(id);
+            outbox.add(event, ORDER_CANCELLED_TOPIC);
+            events.publishEvent(new OrderChanged(event));
+        }
         return toOrderResponse(order);
     }
 

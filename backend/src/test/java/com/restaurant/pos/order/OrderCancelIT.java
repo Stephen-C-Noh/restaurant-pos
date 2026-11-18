@@ -8,6 +8,8 @@ import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.ResultActions;
 
+import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -136,6 +138,20 @@ class OrderCancelIT extends IntegrationTest {
 
         assertThat(jdbc.queryForObject("SELECT status FROM tables WHERE id = ?", String.class, tableId))
                 .isEqualTo(tableStatus);
+    }
+
+    @ParameterizedTest
+    @CsvSource({"FIRED, 1", "PREPARING, 1", "READY, 1", "DRAFT, 0", "SUBMITTED, 0"})
+    void aCancelWritesAnOutboxRow_onlyWhenTheKitchenHadTheOrder(String from, int rows) throws Exception {
+        UUID orderId = insertOrder("TAKEOUT", from, "10.00", null);
+
+        cancel(orderId, "manager1", "{\"reason\":\"Changed mind\"}").andExpect(status().isOk());
+
+        List<Map<String, Object>> outbox = outboxRows(orderId);
+        assertThat(outbox).hasSize(rows);
+        outbox.forEach(row -> assertThat(row).containsEntry("aggregate_type", "Order")
+                .containsEntry("event_type", "OrderCancelled")
+                .containsEntry("topic", "order-cancelled-events"));
     }
 
     @Test
