@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import PinPad from './PinPad'
 import { loginWithPin } from '../services/authService'
 import useAuthStore from '../stores/useAuthStore'
+import { homeRoute } from '../homeRoute'
 
 function Login() {
   const [loading, setLoading] = useState(false)
@@ -21,7 +22,7 @@ function Login() {
         fullName: data.fullName,
         role: data.role,
       })
-      navigate({ SERVER: '/pos', KITCHEN: '/kds' }[data.role] ?? '/admin')
+      navigate(homeRoute(data.role))
     } catch (err) {
       const msg = err.response?.data?.message || 'Invalid PIN. Please try again.'
       setError(msg)
