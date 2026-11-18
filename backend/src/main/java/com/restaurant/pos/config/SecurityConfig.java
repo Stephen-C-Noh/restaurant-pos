@@ -42,6 +42,7 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/api/auth/**").permitAll()
                 .requestMatchers("/api/menu/**").permitAll()
+                // SockJS handshake cannot carry an Authorization header; StompAuthInterceptor authenticates the CONNECT frame
                 .requestMatchers("/ws/**").permitAll()
                 .requestMatchers("/actuator/**").permitAll()
                 .anyRequest().authenticated()
