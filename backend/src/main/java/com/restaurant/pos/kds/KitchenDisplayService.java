@@ -4,12 +4,16 @@ import com.restaurant.pos.events.ItemStatusChangedEvent;
 import com.restaurant.pos.events.OrderFiredEvent;
 import com.restaurant.pos.events.OrderItemEvent;
 import com.restaurant.pos.menu.KitchenSection;
+import com.restaurant.pos.order.OrderService;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.annotation.KafkaListener;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 /**
  * Kitchen Display System service that consumes order events from Kafka.
@@ -24,7 +28,11 @@ import java.util.Map;
  */
 @Service
 @Slf4j
+@RequiredArgsConstructor
 public class KitchenDisplayService {
+
+    private final OrderService orderService;
+    private final SimpMessagingTemplate messagingTemplate;
 
     /**
      * Handles OrderFiredEvent from Kafka.
@@ -40,6 +48,8 @@ public class KitchenDisplayService {
         log.info("Order ID: {}", event.getOrderId());
         log.info("Fired At: {}", event.getFiredAt());
         log.info("========================================");
+
+        push(event.getOrderId());
 
         Map<KitchenSection, List<OrderItemEvent>> itemsBySection = event.getItemsBySection();
 
@@ -65,6 +75,12 @@ public class KitchenDisplayService {
         log.info("Item: {}", event.getMenuItemName());
         log.info("Status: {} -> {}", event.getOldStatus(), event.getNewStatus());
         log.info("========================================");
+        push(event.getOrderId());
+    }
+
+    private void push(UUID orderId) {
+        orderService.findKitchenOrder(orderId)
+                .ifPresent(order -> messagingTemplate.convertAndSend("/topic/orders", order));
     }
 
     /**

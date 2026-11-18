@@ -62,7 +62,6 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
-import static org.mockito.Mockito.doThrow;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -162,11 +161,13 @@ class FireOrderIT extends IntegrationTest {
 
         fire(orderId).andExpect(status().isOk());
 
-        List<JsonNode> messages = topicOrders(orderId);
-        assertThat(messages).hasSize(1);
-        assertThat(messages.get(0).get("status").asText()).isEqualTo("FIRED");
-        assertThat(messages.get(0).get("firedAt").isNull()).isFalse();
-        assertThat(messages.get(0).get("items")).hasSize(2);
+        await().atMost(Duration.ofSeconds(10)).untilAsserted(() -> {
+            List<JsonNode> messages = topicOrders(orderId);
+            assertThat(messages).hasSize(1);
+            assertThat(messages.get(0).get("status").asText()).isEqualTo("FIRED");
+            assertThat(messages.get(0).get("firedAt").isNull()).isFalse();
+            assertThat(messages.get(0).get("items")).hasSize(2);
+        });
     }
 
     // --- fire: rejected -----------------------------------------------------
@@ -223,11 +224,13 @@ class FireOrderIT extends IntegrationTest {
         assertThat(event.getOldStatus()).isEqualTo(OrderItemStatus.FIRED);
         assertThat(event.getNewStatus()).isEqualTo(OrderItemStatus.PREPARING);
         // The push is the whole order (not the item) on the same /topic/orders destination.
-        List<JsonNode> messages = topicOrders(orderId);
-        assertThat(messages).hasSize(1);
-        assertThat(messages.get(0).get("status").asText()).isEqualTo("FIRED");
-        assertThat(messages.get(0).get("items")).singleElement()
-                .satisfies(i -> assertThat(i.get("status").asText()).isEqualTo("PREPARING"));
+        await().atMost(Duration.ofSeconds(10)).untilAsserted(() -> {
+            List<JsonNode> messages = topicOrders(orderId);
+            assertThat(messages).hasSize(1);
+            assertThat(messages.get(0).get("status").asText()).isEqualTo("FIRED");
+            assertThat(messages.get(0).get("items")).singleElement()
+                    .satisfies(i -> assertThat(i.get("status").asText()).isEqualTo("PREPARING"));
+        });
     }
 
     @Test
@@ -266,19 +269,35 @@ class FireOrderIT extends IntegrationTest {
     // --- Phase 2: fire commits independently of Kafka; concurrent fires are serialized ---
 
     @Test
-    void fire_whenKafkaSendThrows_is200_orderFired_andPushed() throws Exception {
-        doThrow(new IllegalStateException("kafka down"))
-                .when(outboxKafkaTemplate).send(anyString(), anyString(), anyString());
+    void fire_whenKafkaIsDown_is200_noPushUntilKafkaIsBack_thenThePushArrives() throws Exception {
         UUID orderId = orderWithItems("DRAFT", BURGER);
+        // Only this order's send fails: rows other tests left PENDING must not stop the batch before ours.
+        AtomicBoolean down = new AtomicBoolean(true);
+        doAnswer(inv -> {
+            if (down.get() && orderId.toString().equals(inv.getArgument(1))) {
+                throw new IllegalStateException("kafka down");
+            }
+            return inv.callRealMethod();
+        }).when(outboxKafkaTemplate).send(anyString(), anyString(), anyString());
 
-        fire(orderId)
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.status").value("FIRED"));
+        fire(orderId).andExpect(status().isOk()).andExpect(jsonPath("$.status").value("FIRED"));
 
         assertThat(orderStatus(orderId)).isEqualTo("FIRED");
         assertThat(firedAt(orderId)).isNotNull();
         assertThat(itemStatuses(orderId)).containsExactly("FIRED");
-        assertThat(topicOrders(orderId)).hasSize(1);
+        // The relay tried and failed: the kitchen screen is driven by Kafka, so nothing was pushed.
+        await().atMost(Duration.ofSeconds(10)).untilAsserted(() ->
+                assertThat((Integer) outboxRows(orderId).get(0).get("attempts")).isGreaterThanOrEqualTo(1));
+        assertThat(topicOrders(orderId)).isEmpty();
+
+        down.set(false);
+        relay.kick(); // on the relay thread, like the real retry
+
+        await().atMost(Duration.ofSeconds(10)).untilAsserted(() -> {
+            List<JsonNode> messages = topicOrders(orderId);
+            assertThat(messages).hasSize(1);
+            assertThat(messages.get(0).get("status").asText()).isEqualTo("FIRED");
+        });
     }
 
     @Test
@@ -298,7 +317,7 @@ class FireOrderIT extends IntegrationTest {
 
         assertThat(codes).containsExactlyInAnyOrder(200, 409);
         assertThat(records(ORDER_FIRED_TOPIC, orderId, Duration.ofSeconds(10))).hasSize(1);
-        assertThat(topicOrders(orderId)).hasSize(1);
+        await().atMost(Duration.ofSeconds(10)).untilAsserted(() -> assertThat(topicOrders(orderId)).hasSize(1));
     }
 
     @Test
@@ -307,7 +326,8 @@ class FireOrderIT extends IntegrationTest {
 
         fire(orderId).andExpect(status().isOk());
 
-        assertThat(firedAtSeenAtPush).hasSize(1).doesNotContainNull();
+        await().atMost(Duration.ofSeconds(10)).untilAsserted(() ->
+                assertThat(firedAtSeenAtPush).hasSize(1).doesNotContainNull());
     }
 
     // --- Phase 3: events go through the outbox ---------------------------------
@@ -698,7 +718,10 @@ class FireOrderIT extends IntegrationTest {
                 UUID.class, orderId);
     }
 
-    /** Messages for this order on /topic/orders. The template sends synchronously, so no waiting is needed. */
+    /**
+     * Messages for this order on /topic/orders so far. The push comes from the Kafka consumer thread, so
+     * "a push happened" assertions must wait for it (await); "no push" assertions need a sentinel or an earlier wait.
+     */
     private List<JsonNode> topicOrders(UUID orderId) {
         List<JsonNode> out = new ArrayList<>();
         for (Message<?> m : sent) {

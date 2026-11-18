@@ -26,6 +26,7 @@ import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -59,6 +60,11 @@ public class OrderService {
                 .stream()
                 .map(this::toOrderResponse)
                 .collect(Collectors.toList());
+    }
+
+    @Transactional(readOnly = true)
+    public Optional<OrderResponse> findKitchenOrder(UUID id) {
+        return orderRepository.findById(id).map(this::toOrderResponse);
     }
 
     @Transactional(readOnly = true)
