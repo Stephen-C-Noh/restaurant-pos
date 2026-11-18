@@ -39,6 +39,9 @@ public class OrderService {
     private static final String ORDER_FIRED_TOPIC = "order-fired-events";
     private static final String ITEM_STATUS_TOPIC = "item-status-events";
 
+    /** What the kitchen screen shows. */
+    private static final Set<OrderStatus> KITCHEN_VISIBLE =
+            Set.of(OrderStatus.FIRED, OrderStatus.PREPARING, OrderStatus.READY);
     private static final Set<OrderStatus> TERMINAL = Set.of(OrderStatus.COMPLETED, OrderStatus.CANCELLED);
 
     private final OrderRepository orderRepository;
@@ -64,7 +67,9 @@ public class OrderService {
 
     @Transactional(readOnly = true)
     public Optional<OrderResponse> findKitchenOrder(UUID id) {
-        return orderRepository.findById(id).map(this::toOrderResponse);
+        return orderRepository.findById(id)
+                .filter(o -> KITCHEN_VISIBLE.contains(o.getStatus()))
+                .map(this::toOrderResponse);
     }
 
     @Transactional(readOnly = true)
