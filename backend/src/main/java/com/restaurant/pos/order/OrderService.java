@@ -379,6 +379,10 @@ public class OrderService {
         // Verify order exists
         Order order = orderRepository.findById(orderId).orElseThrow(() -> new ResourceNotFoundException("Order not found: " + orderId));
 
+        if (!KITCHEN_VISIBLE.contains(order.getStatus())) {
+            throw new BusinessRuleException("Order " + orderId + " is " + order.getStatus() + "; the kitchen no longer has it");
+        }
+
         // Find the specific item
         OrderItem item = orderItemRepository.findById(itemId).orElseThrow(() -> new ResourceNotFoundException("Item not found: " + itemId));
 

@@ -5,6 +5,7 @@ import AdminDashboard from './components/AdminDashboard'
 import Tables from './components/Tables'
 import Login from './components/Login'
 import useAuthStore from './stores/useAuthStore'
+import { homeRoute } from './homeRoute'
 
 function ProtectedRoute({ children, allowedRoles }) {
   const user = useAuthStore((state) => state.user)
@@ -15,8 +16,7 @@ function ProtectedRoute({ children, allowedRoles }) {
   }
 
   if (allowedRoles && !allowedRoles.includes(user.role)) {
-    const fallback = user.role === 'SERVER' ? '/pos' : '/admin'
-    return <Navigate to={fallback} replace />
+    return <Navigate to={homeRoute(user.role)} replace />
   }
 
   return children
@@ -37,7 +37,14 @@ function App() {
               </ProtectedRoute>
             }
           />
-          <Route path="/kds" element={<KitchenDisplay />} />
+          <Route
+            path="/kds"
+            element={
+              <ProtectedRoute allowedRoles={['KITCHEN', 'MANAGER', 'ADMIN']}>
+                <KitchenDisplay />
+              </ProtectedRoute>
+            }
+          />
           <Route
             path="/tables"
             element={

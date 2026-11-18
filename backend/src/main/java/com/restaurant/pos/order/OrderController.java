@@ -44,6 +44,7 @@ public class OrderController {
     }
 
     @PostMapping("/{id}/fire")
+    @PreAuthorize("hasAnyRole('SERVER','MANAGER','ADMIN')")
     public ResponseEntity<OrderResponse> fireOrder(@PathVariable UUID id) {
         return ResponseEntity.ok(orderService.fireOrder(id));
     }
@@ -58,6 +59,7 @@ public class OrderController {
     }
 
     @PatchMapping("/{orderId}/items/{itemId}/status")
+    @PreAuthorize("hasAnyRole('KITCHEN','MANAGER','ADMIN')")
     public ResponseEntity<OrderItemResponse> updateItemStatus(
             @PathVariable UUID orderId,
             @PathVariable UUID itemId,

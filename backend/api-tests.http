@@ -1,6 +1,15 @@
 ### Health Check
 GET http://localhost:8090/actuator/health
 
+### Log in with a PIN (seeded: admin 1234, manager1 5678, server1 9012, server2 3456, kitchen1 7890)
+# The response token goes in the Authorization header of the calls below.
+POST http://localhost:8090/api/auth/login
+Content-Type: application/json
+
+{
+  "pin": "7890"
+}
+
 ### Test Order Creation (will implement next)
 POST http://localhost:8090/api/orders
 Content-Type: application/json
@@ -43,4 +52,15 @@ Content-Type: application/json
 
 {
   "reason": "Guest left before ordering"
+}
+
+
+### Kitchen item status (KITCHEN/MANAGER/ADMIN token; 403 for a SERVER; 409 once the order is no longer FIRED/PREPARING/READY)
+# The kitchen screen reads GET /api/orders/active with the same token and sends it on the STOMP CONNECT frame.
+PATCH http://localhost:8090/api/orders/{{orderId}}/items/{{itemId}}/status
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "status": "PREPARING"
 }

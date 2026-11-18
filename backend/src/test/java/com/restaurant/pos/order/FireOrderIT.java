@@ -718,6 +718,64 @@ class FireOrderIT extends IntegrationTest {
         assertThat(topicOrders(missing)).isEmpty();
     }
 
+    // --- kitchen display auth -----------------------------------------------
+
+    @Test
+    void fire_withKitchenToken_is403_andChangesNothing() throws Exception {
+        UUID orderId = orderWithItems("DRAFT", BURGER);
+
+        mvc.perform(authed(post("/api/orders/" + orderId + "/fire"), "kitchen1"))
+                .andExpect(status().isForbidden());
+
+        assertNothingHappened(orderId, "DRAFT", "PENDING");
+    }
+
+    @Test
+    void itemStatus_withoutToken_is401_andChangesNothing() throws Exception {
+        UUID orderId = orderWithItems("FIRED", BURGER);
+        UUID itemId = itemIds(orderId).get(0);
+        setItemStatus(itemId, "FIRED");
+
+        mvc.perform(patch("/api/orders/" + orderId + "/items/" + itemId + "/status")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"status\":\"PREPARING\"}"))
+                .andExpect(status().isUnauthorized());
+
+        assertThat(itemStatuses(orderId)).containsExactly("FIRED");
+    }
+
+    @Test
+    void itemStatus_withServerToken_is403_andChangesNothing() throws Exception {
+        UUID orderId = orderWithItems("FIRED", BURGER);
+        UUID itemId = itemIds(orderId).get(0);
+        setItemStatus(itemId, "FIRED");
+
+        mvc.perform(authed(patch("/api/orders/" + orderId + "/items/" + itemId + "/status"), "server1")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"status\":\"PREPARING\"}"))
+                .andExpect(status().isForbidden());
+
+        assertThat(itemStatuses(orderId)).containsExactly("FIRED");
+    }
+
+    @Test
+    void activeOrders_withoutToken_is401() throws Exception {
+        mvc.perform(get("/api/orders/active")).andExpect(status().isUnauthorized());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"CANCELLED", "COMPLETED"})
+    void itemStatus_onAnOrderTheKitchenNoLongerHas_is409_andChangesNothing(String orderStatus) throws Exception {
+        UUID orderId = orderWithItems(orderStatus, BURGER);
+        UUID itemId = itemIds(orderId).get(0);
+        setItemStatus(itemId, "FIRED");
+
+        itemStatus(orderId, itemId, "PREPARING").andExpect(status().isConflict());
+
+        assertThat(itemStatuses(orderId)).containsExactly("FIRED");
+        assertThat(outboxRows(orderId)).isEmpty();
+    }
+
     // --- helpers ------------------------------------------------------------
 
     /** An order with one PENDING item per menu item id, inserted via SQL. */

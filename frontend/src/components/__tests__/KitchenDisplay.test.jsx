@@ -20,6 +20,7 @@ vi.mock('@stomp/stompjs', () => ({
 
 const { default: api } = await import('../../services/api');
 const { default: KitchenDisplay } = await import('../KitchenDisplay');
+const { default: useAuthStore } = await import('../../stores/useAuthStore');
 
 describe('KitchenDisplay', () => {
     beforeEach(() => {
@@ -55,5 +56,23 @@ describe('KitchenDisplay', () => {
         act(() => pushOrder({ body: JSON.stringify({ ...fired, status: 'CANCELLED' }) }));
 
         await waitFor(() => expect(screen.queryByText('ORD-1')).toBeNull());
+    });
+
+    it('authenticates the STOMP connection with the logged-in token', async () => {
+        useAuthStore.setState({ token: 'jwt-123', user: { role: 'KITCHEN' } });
+        render(<KitchenDisplay />);
+        await waitFor(() => expect(api.get).toHaveBeenCalled());
+
+        expect(stompConfig.connectHeaders).toEqual({ Authorization: 'Bearer jwt-123' });
+    });
+
+    it('logs out when the server rejects the STOMP connection (e.g. an expired token), so the route sends it to login', async () => {
+        useAuthStore.setState({ token: 'expired', user: { role: 'KITCHEN' } });
+        render(<KitchenDisplay />);
+        await waitFor(() => expect(api.get).toHaveBeenCalled());
+
+        act(() => stompConfig.onStompError({ headers: { message: 'Invalid token' } }));
+
+        expect(useAuthStore.getState().token).toBeNull();
     });
 });

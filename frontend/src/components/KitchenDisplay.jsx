@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import api from '../services/api';
 import { Client } from '@stomp/stompjs';
 import SockJS from 'sockjs-client';
+import useAuthStore from '../stores/useAuthStore';
 
 function KitchenDisplay() {
     // Create State for orders
@@ -105,6 +106,8 @@ function KitchenDisplay() {
         // Create WebSocket Client
         const client = new Client({
             webSocketFactory:  () => new SockJS('http://localhost:8090/ws'),
+            // The SockJS handshake cannot carry a header, so the token travels on the STOMP CONNECT frame
+            connectHeaders: { Authorization: `Bearer ${useAuthStore.getState().token}` },
             onConnect: () => {
                 console.log('WebSocket Connected.');
 
@@ -142,7 +145,13 @@ function KitchenDisplay() {
                 },
             onDisconnect: () => {
                 console.log('WebSocket Disconnected');
-                }
+                },
+            // The server sends a STOMP ERROR only when it rejects the token (e.g. expired after 24 h).
+            // Log out: the route then shows the login page instead of a screen that silently stopped updating.
+            onStompError: (frame) => {
+                console.log('WebSocket rejected: ', frame.headers.message);
+                useAuthStore.getState().logout();
+            }
             });
 
         client.activate();
