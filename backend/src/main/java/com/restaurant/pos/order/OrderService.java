@@ -11,6 +11,8 @@ import com.restaurant.pos.events.OutboxRepository;
 import com.restaurant.pos.menu.KitchenSection;
 import com.restaurant.pos.menu.MenuItem;
 import com.restaurant.pos.menu.MenuService;
+import com.restaurant.pos.payment.PaymentRepository;
+import com.restaurant.pos.payment.PaymentStatus;
 import com.restaurant.pos.user.Role;
 import com.restaurant.pos.user.User;
 import lombok.RequiredArgsConstructor;
@@ -53,6 +55,7 @@ public class OrderService {
     private final ApplicationEventPublisher events;
     private final OutboxRepository outbox;
     private final TableRepository tableRepository;
+    private final PaymentRepository paymentRepository;
 
     @Transactional(readOnly = true)
     public List<OrderResponse> getAllOrders() {
@@ -184,6 +187,9 @@ public class OrderService {
         // Once the kitchen has the order, only a manager or admin may pull it back.
         if (KITCHEN_VISIBLE.contains(order.getStatus()) && user.getRole() != Role.MANAGER && user.getRole() != Role.ADMIN) {
             throw new AccessDeniedException("Only a manager or admin may cancel an order the kitchen has");
+        }
+        if (paymentRepository.existsByOrderIdAndStatus(id, PaymentStatus.CAPTURED)) {
+            throw new BusinessRuleException("Order has a captured payment; refund or void the payment first");
         }
         order.setCancelReason(reason);
         order.setCancelledBy(user.getId());

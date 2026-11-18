@@ -109,6 +109,20 @@ class OrderCancelIT extends IntegrationTest {
     }
 
     @Test
+    void anOrderWithACapturedPayment_is409_andChangesNothing() throws Exception {
+        UUID orderId = insertOrder("TAKEOUT", "FIRED", "21.00", null);
+        jdbc.update("""
+                INSERT INTO payments (order_id, payment_method, amount, status, captured_at)
+                VALUES (?, 'CASH', 5.00, 'CAPTURED', now())""", orderId);
+
+        String body = cancel(orderId, "manager1", "{\"reason\":\"Walkout\"}").andExpect(status().isConflict())
+                .andReturn().getResponse().getContentAsString();
+
+        assertThat(body).contains("refund or void the payment first");
+        assertNotCancelled(orderId, "FIRED");
+    }
+
+    @Test
     void aMissingOrder_is404() throws Exception {
         cancel(UUID.randomUUID(), "manager1", "{\"reason\":\"Oops\"}").andExpect(status().isNotFound());
     }
