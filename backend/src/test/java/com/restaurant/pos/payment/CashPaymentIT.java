@@ -247,13 +247,6 @@ class CashPaymentIT extends IntegrationTest {
         return insertOrder("DINE_IN", status, total, tableId);
     }
 
-    private UUID table(String status) {
-        UUID id = UUID.randomUUID();
-        jdbc.update("INSERT INTO tables (id, table_number, capacity, status) VALUES (?, ?, 4, ?)",
-                id, "X" + id.toString().substring(0, 8), status);
-        return id;
-    }
-
     private static String cash(String amount, String tip, String tendered) {
         return """
                 {"method":"CASH","amount":%s,"tip":%s,"tendered":%s}""".formatted(amount, tip, tendered);

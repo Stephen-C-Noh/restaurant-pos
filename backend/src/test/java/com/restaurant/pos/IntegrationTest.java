@@ -76,6 +76,13 @@ public abstract class IntegrationTest {
         return id;
     }
 
+    protected UUID table(String status) {
+        UUID id = UUID.randomUUID();
+        jdbc.update("INSERT INTO tables (id, table_number, capacity, status) VALUES (?, ?, 4, ?)",
+                id, "X" + id.toString().substring(0, 8), status);
+        return id;
+    }
+
     protected MockHttpServletRequestBuilder authed(MockHttpServletRequestBuilder req, String username) {
         String token = jwtService.generateToken(userRepository.findByUsername(username).orElseThrow());
         return req.header("Authorization", "Bearer " + token);
