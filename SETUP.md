@@ -4,28 +4,37 @@
 
 Make sure you have the following installed:
 - ✅ Java JDK 21 (verify: `java -version`)
-- ✅ Node.js 20.x LTS (verify: `node -v`)
+- ✅ Node.js 22 (verify: `node -v`)
 - ✅ Docker Desktop (verify: `docker --version`)
-- ✅ Maven 3.8+ (verify: `mvn -v`)
+
+Maven is not needed: the backend ships the Maven wrapper (`./mvnw`).
 
 ## Quick Start (5 Minutes)
 
-### Step 1: Start Infrastructure
+### Step 1: Start the stack
 
 ```bash
 cd docker
-docker-compose up -d
+docker compose up -d
 ```
 
 This starts:
 - PostgreSQL on port 5432
-- Kafka on port 9092
+- ZooKeeper on port 2181, Kafka on port 9092
 - Kafka UI on port 8080
 - pgAdmin on port 5050
+- Backend on port 8090
+- Frontend on port 5173
+
+With the whole stack up you are done: skip steps 2 and 3. To run the backend and frontend from source instead, start only the infrastructure, so ports 8090 and 5173 stay free:
+
+```bash
+docker compose up -d postgres zookeeper kafka kafka-ui pgadmin
+```
 
 **Verify services are running:**
 ```bash
-docker-compose ps
+docker compose ps
 ```
 
 All services should show "Up" status.
@@ -35,11 +44,8 @@ All services should show "Up" status.
 ```bash
 cd backend
 
-# First time only: package the application
-./mvn clean package -DskipTests
-
-# Start the Spring Boot application
-./mvn spring-boot:run
+# Start the Spring Boot application (compiles on the first run)
+./mvnw spring-boot:run
 ```
 
 **Backend will be available at:** http://localhost:8090
@@ -64,7 +70,7 @@ npm run dev
 
 | Service | URL | Credentials |
 |---------|-----|-------------|
-| Frontend | http://localhost:5173 | N/A |
+| Frontend | http://localhost:5173 | PIN: admin 1234, manager1 5678, server1 9012, server2 3456, kitchen1 7890 |
 | Backend API | http://localhost:8090/api | N/A |
 | pgAdmin | http://localhost:5050 | admin@restaurant.com / admin123 |
 | Kafka UI | http://localhost:8080 | N/A |
@@ -91,17 +97,17 @@ docker exec -it pos-postgres psql -U posuser -d restaurant_pos -c "\dt"
 You should see tables like: users, orders, menu_items, etc.
 
 ### 2. Check Kafka Topics
-Visit http://localhost:8080 and you should see Kafka topics.
+Visit http://localhost:8080. Topics are created on first use, so they appear after the first order is fired.
 
 ### 3. Test Backend API
 ```bash
 curl http://localhost:8090/actuator/health
 ```
 
-Should return: `{"status":"UP"}`
+Should return JSON with `"status":"UP"`.
 
 ### 4. Test Frontend
-Open http://localhost:5173 in your browser. You should see the login page.
+Open http://localhost:5173 in your browser. You should see the login page. Log in with server1 (9012) for the POS or kitchen1 (7890) for the kitchen display.
 
 ## Common Issues
 
@@ -115,8 +121,8 @@ Open http://localhost:5173 in your browser. You should see the login page.
 **Solution:** 
 ```bash
 cd docker
-docker-compose down
-docker-compose up -d
+docker compose down
+docker compose up -d
 ```
 
 Wait 30 seconds for PostgreSQL to fully start, then restart the backend.
@@ -127,9 +133,8 @@ Wait 30 seconds for PostgreSQL to fully start, then restart the backend.
 ## Next Steps
 
 1. ✅ Run through this setup guide
-2. 📖 Read the [Restaurant_POS_Implementation_Guide.md](./Restaurant_POS_Implementation_Guide.md)
-3. 🏗️ Start building! Follow the phased implementation plan
-4. 🧪 Write tests as you go
+2. 📖 Read the [README](./README.md) for features, architecture and tests
+3. 🧪 Run the tests (README, Testing)
 
 ## Stopping Services
 
@@ -140,10 +145,10 @@ Wait 30 seconds for PostgreSQL to fully start, then restart the backend.
 
 # Stop Docker services
 cd docker
-docker-compose down
+docker compose down
 
 # To remove volumes (fresh start)
-docker-compose down -v
+docker compose down -v
 ```
 
 ## Development Workflow
@@ -156,7 +161,7 @@ docker-compose down -v
 
 ## Need Help?
 
-- Check logs: `docker-compose logs -f [service-name]`
+- Check logs: `docker compose logs -f [service-name]`
 - Backend logs: In the terminal where you ran `./mvnw spring-boot:run`
 - Frontend logs: Browser developer console
 - Database issues: Check pgAdmin or run SQL directly

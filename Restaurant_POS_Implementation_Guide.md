@@ -1,5 +1,7 @@
 # Restaurant POS System - Complete Implementation Guide
 
+> **Original design plan, written December 2025.** Not everything here was built (for example offline mode, the PWA, and the analytics and inventory consumers), and some designs changed. The [README](./README.md) describes what exists.
+
 **Project Type:** Solo Learning Project with Production Patterns  
 **Deployment:** On-premises (Local Development)  
 **Timeline:** Flexible, milestone-driven  
