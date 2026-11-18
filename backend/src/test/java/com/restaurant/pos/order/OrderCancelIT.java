@@ -122,6 +122,22 @@ class OrderCancelIT extends IntegrationTest {
         assertNotCancelled(orderId, "FIRED");
     }
 
+    @ParameterizedTest
+    @CsvSource({"false, CLEANING", "true, OCCUPIED"})
+    void cancellingADineInOrder_cleansTheTable_onlyWhenItWasTheLastOpenOrder(boolean otherOpenOrder, String tableStatus)
+            throws Exception {
+        UUID tableId = table("OCCUPIED");
+        UUID orderId = insertOrder("DINE_IN", "DRAFT", "10.00", tableId);
+        if (otherOpenOrder) {
+            insertOrder("DINE_IN", "FIRED", "10.00", tableId);
+        }
+
+        cancel(orderId, "server1", "{\"reason\":\"Party left\"}").andExpect(status().isOk());
+
+        assertThat(jdbc.queryForObject("SELECT status FROM tables WHERE id = ?", String.class, tableId))
+                .isEqualTo(tableStatus);
+    }
+
     @Test
     void aMissingOrder_is404() throws Exception {
         cancel(UUID.randomUUID(), "manager1", "{\"reason\":\"Oops\"}").andExpect(status().isNotFound());
