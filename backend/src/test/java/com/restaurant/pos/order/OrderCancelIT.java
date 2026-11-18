@@ -55,6 +55,11 @@ class OrderCancelIT extends IntegrationTest {
         assertNotCancelled(orderId, from);
     }
 
+    @Test
+    void aMissingOrder_is404() throws Exception {
+        cancel(UUID.randomUUID(), "manager1", "{\"reason\":\"Oops\"}").andExpect(status().isNotFound());
+    }
+
     private void assertNotCancelled(UUID orderId, String status) {
         assertThat(orderStatus(orderId)).isEqualTo(status);
         assertThat(jdbc.queryForObject("SELECT cancel_reason FROM orders WHERE id = ?", String.class, orderId)).isNull();
