@@ -58,4 +58,16 @@ class StompAuthIT extends IntegrationTest {
 
         assertThatThrownBy(() -> clientInbound.send(frame)).isInstanceOf(MessagingException.class);
     }
+
+    @Test
+    void subscribe_onAnAuthenticatedSession_isAccepted() {
+        StompHeaderAccessor subscribe = StompHeaderAccessor.create(StompCommand.SUBSCRIBE);
+        subscribe.setSessionId("it-authenticated");
+        subscribe.setSubscriptionId("sub-0");
+        subscribe.setDestination("/topic/orders");
+        subscribe.setUser(() -> "kitchen1"); // what StompSubProtocolHandler sets from the session after CONNECT
+        Message<byte[]> frame = MessageBuilder.createMessage(new byte[0], subscribe.getMessageHeaders());
+
+        assertThatCode(() -> clientInbound.send(frame)).doesNotThrowAnyException();
+    }
 }
