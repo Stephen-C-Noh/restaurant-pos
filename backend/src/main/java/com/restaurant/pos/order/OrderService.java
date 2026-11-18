@@ -158,7 +158,13 @@ public class OrderService {
         Order order = orderRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Order not found: " + id));
         if (!order.getStatus().canPatchTo(newStatus)) {
-            throw new BusinessRuleException("Cannot change order status from " + order.getStatus() + " to " + newStatus);
+            throw new BusinessRuleException("Cannot change order status from " + order.getStatus() + " to " + newStatus
+                    + ". " + switch (newStatus) {
+                        case FIRED -> "Fire the order with POST /api/orders/{id}/fire.";
+                        case COMPLETED -> "An order is completed by payment.";
+                        case CANCELLED -> "Cancelling is not available yet.";
+                        default -> "Allowed: repeat the status, DRAFT to SUBMITTED, FIRED to PREPARING to READY.";
+                    });
         }
         order.setStatus(newStatus);
         orderRepository.save(order);

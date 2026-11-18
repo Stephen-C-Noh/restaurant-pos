@@ -292,6 +292,20 @@ class FireOrderIT extends IntegrationTest {
         assertThat(orderStatus(draft)).isEqualTo("SUBMITTED");
     }
 
+    @ParameterizedTest
+    @CsvSource({
+            "FIRED,       POST /api/orders/{id}/fire",
+            "COMPLETED,   completed by payment",
+            "CANCELLED,   Cancelling is not available yet"})
+    void patchStatus_rejection_namesTheRightDoor(String to, String expectedHint) throws Exception {
+        UUID orderId = insertOrder("TAKEOUT", "SUBMITTED", "1.00", null);
+
+        String body = patchStatus(orderId, to).andExpect(status().isConflict())
+                .andReturn().getResponse().getContentAsString();
+
+        assertThat(json.readTree(body).get("message").asText()).contains(expectedHint);
+    }
+
     // --- Phase 2: fire commits independently of Kafka; concurrent fires are serialized ---
 
     @Test
