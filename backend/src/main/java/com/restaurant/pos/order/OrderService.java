@@ -11,9 +11,12 @@ import com.restaurant.pos.events.OutboxRepository;
 import com.restaurant.pos.menu.KitchenSection;
 import com.restaurant.pos.menu.MenuItem;
 import com.restaurant.pos.menu.MenuService;
+import com.restaurant.pos.user.Role;
+import com.restaurant.pos.user.User;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -172,14 +175,18 @@ public class OrderService {
     }
 
     @Transactional
-    public OrderResponse cancel(UUID id, String reason, UUID userId) {
+    public OrderResponse cancel(UUID id, String reason, User user) {
         Order order = orderRepository.findByIdForUpdate(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Order not found: " + id));
         if (TERMINAL.contains(order.getStatus())) {
             throw new BusinessRuleException("Order is already " + order.getStatus());
         }
+        // Once the kitchen has the order, only a manager or admin may pull it back.
+        if (KITCHEN_VISIBLE.contains(order.getStatus()) && user.getRole() != Role.MANAGER && user.getRole() != Role.ADMIN) {
+            throw new AccessDeniedException("Only a manager or admin may cancel an order the kitchen has");
+        }
         order.setCancelReason(reason);
-        order.setCancelledBy(userId);
+        order.setCancelledBy(user.getId());
         close(order, OrderStatus.CANCELLED);
         return toOrderResponse(order);
     }

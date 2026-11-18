@@ -54,7 +54,7 @@ public class OrderController {
             @PathVariable UUID id,
             @Valid @RequestBody CancelOrderRequest request,
             @AuthenticationPrincipal User user) {
-        return ResponseEntity.ok(orderService.cancel(id, request.reason(), user.getId()));
+        return ResponseEntity.ok(orderService.cancel(id, request.reason(), user));
     }
 
     @PatchMapping("/{orderId}/items/{itemId}/status")

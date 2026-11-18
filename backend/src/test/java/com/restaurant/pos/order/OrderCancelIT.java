@@ -3,6 +3,7 @@ package com.restaurant.pos.order;
 import com.restaurant.pos.IntegrationTest;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.ResultActions;
@@ -53,6 +54,36 @@ class OrderCancelIT extends IntegrationTest {
         cancel(orderId, "manager1", "{\"reason\":\"Too late\"}").andExpect(status().isConflict());
 
         assertNotCancelled(orderId, from);
+    }
+
+    /** Before the kitchen has it anyone but the kitchen may cancel; after the fire only a manager or admin. */
+    @ParameterizedTest
+    @CsvSource({
+            "server1, DRAFT, 200",
+            "server1, SUBMITTED, 200",
+            "server1, FIRED, 403",
+            "server1, PREPARING, 403",
+            "server1, READY, 403",
+            "manager1, DRAFT, 200",
+            "manager1, SUBMITTED, 200",
+            "manager1, FIRED, 200",
+            "manager1, PREPARING, 200",
+            "manager1, READY, 200",
+            "admin, DRAFT, 200",
+            "admin, SUBMITTED, 200",
+            "admin, FIRED, 200",
+            "admin, PREPARING, 200",
+            "admin, READY, 200"})
+    void whoMayCancelWhichState(String username, String from, int expected) throws Exception {
+        UUID orderId = insertOrder("TAKEOUT", from, "10.00", null);
+
+        cancel(orderId, username, "{\"reason\":\"Changed mind\"}").andExpect(status().is(expected));
+
+        if (expected == 200) {
+            assertThat(orderStatus(orderId)).isEqualTo("CANCELLED");
+        } else {
+            assertNotCancelled(orderId, from);
+        }
     }
 
     @ParameterizedTest
