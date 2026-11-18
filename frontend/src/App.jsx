@@ -37,7 +37,14 @@ function App() {
               </ProtectedRoute>
             }
           />
-          <Route path="/kds" element={<KitchenDisplay />} />
+          <Route
+            path="/kds"
+            element={
+              <ProtectedRoute allowedRoles={['KITCHEN', 'MANAGER', 'ADMIN']}>
+                <KitchenDisplay />
+              </ProtectedRoute>
+            }
+          />
           <Route
             path="/tables"
             element={
