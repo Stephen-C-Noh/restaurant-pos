@@ -16,7 +16,7 @@ A full-featured restaurant Point of Sale system built with Spring Boot and React
 ## 🚀 Features
 
 - **Order Management**: Complete order lifecycle from creation to completion
-- **Kitchen Display System (KDS)**: Real-time order updates via WebSocket
+- **Kitchen Display System (KDS)**: Real-time order updates via WebSocket; the screen signs in as a kitchen user (seeded `kitchen1`, PIN 7890) and the socket is authenticated on the STOMP CONNECT frame
 - **Offline Mode**: Full offline support with automatic sync when back online
 - **Event-Driven Architecture**: Kafka-based messaging for system decoupling
 - **Payment Processing**: Mock payment terminal with proper transaction flow
