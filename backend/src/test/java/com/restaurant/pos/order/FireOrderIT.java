@@ -744,6 +744,20 @@ class FireOrderIT extends IntegrationTest {
         assertThat(itemStatuses(orderId)).containsExactly("FIRED");
     }
 
+    @Test
+    void itemStatus_withServerToken_is403_andChangesNothing() throws Exception {
+        UUID orderId = orderWithItems("FIRED", BURGER);
+        UUID itemId = itemIds(orderId).get(0);
+        setItemStatus(itemId, "FIRED");
+
+        mvc.perform(authed(patch("/api/orders/" + orderId + "/items/" + itemId + "/status"), "server1")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"status\":\"PREPARING\"}"))
+                .andExpect(status().isForbidden());
+
+        assertThat(itemStatuses(orderId)).containsExactly("FIRED");
+    }
+
     // --- helpers ------------------------------------------------------------
 
     /** An order with one PENDING item per menu item id, inserted via SQL. */

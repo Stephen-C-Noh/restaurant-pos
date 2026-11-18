@@ -59,6 +59,7 @@ public class OrderController {
     }
 
     @PatchMapping("/{orderId}/items/{itemId}/status")
+    @PreAuthorize("hasAnyRole('KITCHEN','MANAGER','ADMIN')")
     public ResponseEntity<OrderItemResponse> updateItemStatus(
             @PathVariable UUID orderId,
             @PathVariable UUID itemId,
