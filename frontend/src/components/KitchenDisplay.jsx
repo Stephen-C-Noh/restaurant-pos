@@ -116,6 +116,12 @@ function KitchenDisplay() {
                     console.log('Received Order: ', message.body);
                     const newOrder = JSON.parse(message.body);
 
+                    // The kitchen no longer has this order (cancelled): drop the ticket, no sound
+                    if (!['FIRED', 'PREPARING', 'READY'].includes(newOrder.status)) {
+                        setOrders(prevOrders => prevOrders.filter(o => o.id !== newOrder.id));
+                        return;
+                    }
+
                     // Add or Update order in state
                     setOrders(prevOrders =>{
                         const exists = prevOrders.find(o => o.id === newOrder.id);
