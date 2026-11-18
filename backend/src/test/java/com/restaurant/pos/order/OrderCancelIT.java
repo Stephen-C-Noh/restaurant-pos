@@ -55,6 +55,16 @@ class OrderCancelIT extends IntegrationTest {
         assertNotCancelled(orderId, from);
     }
 
+    @ParameterizedTest
+    @ValueSource(strings = {"DRAFT", "SUBMITTED", "FIRED", "PREPARING", "READY"})
+    void kitchen_is403_inEveryState_andChangesNothing(String from) throws Exception {
+        UUID orderId = insertOrder("TAKEOUT", from, "10.00", null);
+
+        cancel(orderId, "kitchen1", "{\"reason\":\"Nope\"}").andExpect(status().isForbidden());
+
+        assertNotCancelled(orderId, from);
+    }
+
     @Test
     void aMissingOrder_is404() throws Exception {
         cancel(UUID.randomUUID(), "manager1", "{\"reason\":\"Oops\"}").andExpect(status().isNotFound());
