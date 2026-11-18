@@ -1,5 +1,6 @@
 package com.restaurant.pos.order;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.restaurant.pos.IntegrationTest;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -8,11 +9,13 @@ import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.ResultActions;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.awaitility.Awaitility.await;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -152,6 +155,19 @@ class OrderCancelIT extends IntegrationTest {
         outbox.forEach(row -> assertThat(row).containsEntry("aggregate_type", "Order")
                 .containsEntry("event_type", "OrderCancelled")
                 .containsEntry("topic", "order-cancelled-events"));
+    }
+
+    @Test
+    void cancellingAnOrderTheKitchenHad_pushesItToTheKdsAsCancelled() throws Exception {
+        UUID orderId = insertOrder("TAKEOUT", "FIRED", "10.00", null);
+
+        cancel(orderId, "manager1", "{\"reason\":\"Kitchen fire\"}").andExpect(status().isOk());
+
+        await().atMost(Duration.ofSeconds(10)).untilAsserted(() -> {
+            List<JsonNode> pushes = topicOrders(orderId);
+            assertThat(pushes).hasSize(1);
+            assertThat(pushes.get(0).get("status").asText()).isEqualTo("CANCELLED");
+        });
     }
 
     @Test

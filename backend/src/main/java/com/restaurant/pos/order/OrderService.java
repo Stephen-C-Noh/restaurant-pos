@@ -81,6 +81,13 @@ public class OrderService {
     }
 
     @Transactional(readOnly = true)
+    public Optional<OrderResponse> findCancelledOrder(UUID id) {
+        return orderRepository.findById(id)
+                .filter(o -> o.getStatus() == OrderStatus.CANCELLED)
+                .map(this::toOrderResponse);
+    }
+
+    @Transactional(readOnly = true)
     public OrderResponse getOrderById(UUID id) {
         Order order = orderRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Order not found: " + id));
