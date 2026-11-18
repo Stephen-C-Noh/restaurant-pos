@@ -25,3 +25,10 @@ Content-Type: application/json
   "tip": 3.00,
   "tendered": 30.00
 }
+
+
+### Move an order along the kitchen path (needs a token from /api/auth)
+# Allowed: DRAFT -> SUBMITTED, FIRED -> PREPARING -> READY, or the same status again (no-op).
+# Anything else is 409: fire with POST /api/orders/{id}/fire, complete by payment; cancelling is not available yet.
+PATCH http://localhost:8090/api/orders/{{orderId}}/status?status=PREPARING
+Authorization: Bearer {{token}}

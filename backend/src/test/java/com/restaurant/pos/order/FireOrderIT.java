@@ -251,21 +251,69 @@ class FireOrderIT extends IntegrationTest {
     // --- KDS initial load ---------------------------------------------------
 
     @Test
-    void activeOrders_includesFired_excludesDraftSubmittedCompletedCancelled() throws Exception {
-        List<String> notFired = List.of("DRAFT", "SUBMITTED", "COMPLETED", "CANCELLED");
-        UUID fired = insertOrder("TAKEOUT", "FIRED", "1.00", null);
-        List<UUID> others = notFired.stream().map(s -> insertOrder("TAKEOUT", s, "1.00", null)).toList();
+    void activeOrders_returnsFiredPreparingReady_notDraftSubmittedCompletedCancelled() throws Exception {
+        List<UUID> active = List.of("FIRED", "PREPARING", "READY").stream()
+                .map(s -> insertOrder("TAKEOUT", s, "1.00", null)).toList();
+        List<UUID> inactive = List.of("DRAFT", "SUBMITTED", "COMPLETED", "CANCELLED").stream()
+                .map(s -> insertOrder("TAKEOUT", s, "1.00", null)).toList();
 
         String body = mvc.perform(authed(get("/api/orders/active"), "kitchen1"))
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString();
 
         List<String> ids = new ArrayList<>();
-        json.readTree(body).forEach(o -> {
-            ids.add(o.get("id").asText());
-        });
-        assertThat(ids).contains(fired.toString());
-        assertThat(ids).doesNotContainAnyElementsOf(others.stream().map(UUID::toString).toList());
+        json.readTree(body).forEach(o -> ids.add(o.get("id").asText()));
+        assertThat(ids).containsAll(active.stream().map(UUID::toString).toList());
+        assertThat(ids).doesNotContainAnyElementsOf(inactive.stream().map(UUID::toString).toList());
+    }
+
+    // --- PATCH /status ------------------------------------------------------
+
+    @ParameterizedTest
+    @CsvSource({"FIRED,COMPLETED", "FIRED,CANCELLED", "DRAFT,FIRED", "COMPLETED,READY", "CANCELLED,DRAFT", "READY,PREPARING"})
+    void patchStatus_toADisallowedStatus_is409_andChangesNothing(String from, String to) throws Exception {
+        UUID orderId = insertOrder("TAKEOUT", from, "1.00", null);
+
+        patchStatus(orderId, to).andExpect(status().isConflict());
+
+        assertThat(orderStatus(orderId)).isEqualTo(from);
+    }
+
+    @Test
+    void patchStatus_alongTheKitchenPath_is200_andTheStatusFollows() throws Exception {
+        UUID fired = insertOrder("TAKEOUT", "FIRED", "1.00", null);
+        patchStatus(fired, "PREPARING").andExpect(status().isOk());
+        assertThat(orderStatus(fired)).isEqualTo("PREPARING");
+        patchStatus(fired, "READY").andExpect(status().isOk());
+        assertThat(orderStatus(fired)).isEqualTo("READY");
+
+        UUID draft = insertOrder("TAKEOUT", "DRAFT", "1.00", null);
+        patchStatus(draft, "SUBMITTED").andExpect(status().isOk());
+        assertThat(orderStatus(draft)).isEqualTo("SUBMITTED");
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "FIRED,       POST /api/orders/{id}/fire",
+            "COMPLETED,   completed by payment",
+            "CANCELLED,   Cancelling is not available yet"})
+    void patchStatus_rejection_namesTheRightDoor(String to, String expectedHint) throws Exception {
+        UUID orderId = insertOrder("TAKEOUT", "SUBMITTED", "1.00", null);
+
+        String body = patchStatus(orderId, to).andExpect(status().isConflict())
+                .andReturn().getResponse().getContentAsString();
+
+        assertThat(json.readTree(body).get("message").asText()).contains(expectedHint);
+    }
+
+    @Test
+    void patchStatus_withoutToken_is401_andChangesNothing() throws Exception {
+        UUID orderId = insertOrder("TAKEOUT", "FIRED", "1.00", null);
+
+        mvc.perform(patch("/api/orders/" + orderId + "/status").param("status", "PREPARING"))
+                .andExpect(status().isUnauthorized());
+
+        assertThat(orderStatus(orderId)).isEqualTo("FIRED");
     }
 
     // --- Phase 2: fire commits independently of Kafka; concurrent fires are serialized ---
@@ -708,6 +756,10 @@ class FireOrderIT extends IntegrationTest {
 
     private ResultActions fire(UUID orderId) throws Exception {
         return mvc.perform(authed(post("/api/orders/" + orderId + "/fire"), "server1"));
+    }
+
+    private ResultActions patchStatus(UUID orderId, String newStatus) throws Exception {
+        return mvc.perform(authed(patch("/api/orders/" + orderId + "/status").param("status", newStatus), "server1"));
     }
 
     private ResultActions itemStatus(UUID orderId, UUID itemId, String newStatus) throws Exception {
