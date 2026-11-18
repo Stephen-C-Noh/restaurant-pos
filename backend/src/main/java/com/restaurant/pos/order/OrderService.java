@@ -171,6 +171,16 @@ public class OrderService {
         return toOrderResponse(order);
     }
 
+    @Transactional
+    public OrderResponse cancel(UUID id, String reason, UUID userId) {
+        Order order = orderRepository.findByIdForUpdate(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Order not found: " + id));
+        order.setCancelReason(reason);
+        order.setCancelledBy(userId);
+        close(order, OrderStatus.CANCELLED);
+        return toOrderResponse(order);
+    }
+
     /**
      * Moves an order to a terminal status (COMPLETED or CANCELLED) and applies the table rule (§5.3):
      * a dine-in table goes OCCUPIED -> CLEANING once no other open order remains on it.

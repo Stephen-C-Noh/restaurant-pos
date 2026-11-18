@@ -1,9 +1,12 @@
 package com.restaurant.pos.order;
 
+import com.restaurant.pos.user.User;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -43,6 +46,15 @@ public class OrderController {
     @PostMapping("/{id}/fire")
     public ResponseEntity<OrderResponse> fireOrder(@PathVariable UUID id) {
         return ResponseEntity.ok(orderService.fireOrder(id));
+    }
+
+    @PostMapping("/{id}/cancel")
+    @PreAuthorize("hasAnyRole('SERVER','MANAGER','ADMIN')")
+    public ResponseEntity<OrderResponse> cancelOrder(
+            @PathVariable UUID id,
+            @Valid @RequestBody CancelOrderRequest request,
+            @AuthenticationPrincipal User user) {
+        return ResponseEntity.ok(orderService.cancel(id, request.reason(), user.getId()));
     }
 
     @PatchMapping("/{orderId}/items/{itemId}/status")
