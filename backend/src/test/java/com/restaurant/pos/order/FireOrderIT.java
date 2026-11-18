@@ -758,6 +758,11 @@ class FireOrderIT extends IntegrationTest {
         assertThat(itemStatuses(orderId)).containsExactly("FIRED");
     }
 
+    @Test
+    void activeOrders_withoutToken_is401() throws Exception {
+        mvc.perform(get("/api/orders/active")).andExpect(status().isUnauthorized());
+    }
+
     // --- helpers ------------------------------------------------------------
 
     /** An order with one PENDING item per menu item id, inserted via SQL. */
