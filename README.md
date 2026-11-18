@@ -15,8 +15,8 @@ A full-featured restaurant Point of Sale system built with Spring Boot and React
 
 ## 🚀 Features
 
-- **Order Management**: Create, fire, and cancel orders; kitchen status moves FIRED → PREPARING → READY; an order completes only through payment
-- **Kitchen Display System (KDS)**: Real-time order updates via WebSocket; the screen signs in as a kitchen user (seeded `kitchen1`, PIN 7890) and the socket is authenticated on the STOMP CONNECT frame
+- **Order Management**: Create and fire orders from the POS; cancel over the REST API (no cancel button in the UI yet); an order completes only through payment
+- **Kitchen Display System (KDS)**: Real-time order updates via WebSocket; the cook advances each item FIRED → PREPARING → READY → SERVED; the screen signs in as a kitchen user (seeded `kitchen1`, PIN 7890) and the socket is authenticated on the STOMP CONNECT frame
 - **Kafka drives the kitchen display**: fire, item-status, and cancel events are written to an outbox table in the same database transaction as the change, a relay publishes them to Kafka, and the KDS consumer pushes the current order to the screen. If Kafka is down, orders wait in the outbox and reach the kitchen when it returns
 - **Measured latency**: fire to card on screen, median 22.5 ms and worst 35 ms over 20 orders on the local stack ([docs/perf/kds-latency.md](docs/perf/kds-latency.md))
 - **Payments**: Cash payments over the REST API with split-safe balance checks and idempotency keys (no payment screen in the POS UI yet); card via a mock terminal is planned ([docs/payment-implementation-plan.md](docs/payment-implementation-plan.md))
@@ -113,6 +113,8 @@ restaurant-pos/
 ├── frontend/              # React application
 ├── scripts/               # fire-orders.sh (latency measurement)
 ├── docs/                  # Payment plan, latency results, screenshots
+├── agents/                # Agent role definitions (PM, backend, frontend, QA)
+├── setup.sh               # One-time development environment setup
 └── Restaurant_POS_Implementation_Guide.md
 ```
 
@@ -136,19 +138,11 @@ cd backend
 ### Frontend Tests
 ```bash
 cd frontend
-npm test
+npx vitest run   # single run; npm test starts watch mode
 ```
 
 ### CI
 Every pull request and every push to `master` runs `.github/workflows/ci.yml`: `./mvnw -B verify -Pit` (unit tests, then the integration tests), and in `frontend/` `npx vitest run`, `npm run lint` and `npm run build`.
-
-## 📝 Development Workflow
-
-1. **Phase 1**: Basic order creation and display
-2. **Phase 2**: Kitchen Display System integration
-3. **Phase 3**: Payment processing
-4. **Planned**: LAN-first operation (see Roadmap)
-5. **Phase 5**: Advanced features (reporting, analytics)
 
 ## 🔧 Configuration
 

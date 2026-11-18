@@ -8,8 +8,8 @@ Local Docker Compose stack, one machine, idle, warm (after a discarded warm-up r
 
 | Date | Commit | Kitchen push path | Transport median / worst | On screen median / worst |
 |---|---|---|---|---|
-| 2026-11-18 | `2709bca` + probe | Direct WebSocket push after commit (before Phase 3) | 7 ms / 9 ms | 16 ms / 24 ms |
-| 2026-11-18 | `f75853a` | Outbox → relay → Kafka → KDS consumer → WebSocket (Phases 3-4) | 14 ms / 20 ms | 22.5 ms / 35 ms |
+| 2026-11-17 | `2709bca` + probe | Direct WebSocket push after commit (before Phase 3) | 7 ms / 9 ms | 16 ms / 24 ms |
+| 2026-11-17 | `f75853a` | Outbox → relay → Kafka → KDS consumer → WebSocket (Phases 3-4) | 14 ms / 20 ms | 22.5 ms / 35 ms |
 
 Routing the push through the outbox and Kafka costs about 7 ms at the median. The worst case seen is 35 ms from fire to the card on screen.
 

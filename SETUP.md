@@ -20,7 +20,7 @@ docker compose up -d
 
 This starts:
 - PostgreSQL on port 5432
-- ZooKeeper and Kafka on port 9092
+- ZooKeeper on port 2181, Kafka on port 9092
 - Kafka UI on port 8080
 - pgAdmin on port 5050
 - Backend on port 8090
@@ -97,7 +97,7 @@ docker exec -it pos-postgres psql -U posuser -d restaurant_pos -c "\dt"
 You should see tables like: users, orders, menu_items, etc.
 
 ### 2. Check Kafka Topics
-Visit http://localhost:8080 and you should see Kafka topics.
+Visit http://localhost:8080. Topics are created on first use, so they appear after the first order is fired.
 
 ### 3. Test Backend API
 ```bash
