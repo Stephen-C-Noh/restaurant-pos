@@ -279,6 +279,19 @@ class FireOrderIT extends IntegrationTest {
         assertThat(orderStatus(orderId)).isEqualTo(from);
     }
 
+    @Test
+    void patchStatus_alongTheKitchenPath_is200_andTheStatusFollows() throws Exception {
+        UUID fired = insertOrder("TAKEOUT", "FIRED", "1.00", null);
+        patchStatus(fired, "PREPARING").andExpect(status().isOk());
+        assertThat(orderStatus(fired)).isEqualTo("PREPARING");
+        patchStatus(fired, "READY").andExpect(status().isOk());
+        assertThat(orderStatus(fired)).isEqualTo("READY");
+
+        UUID draft = insertOrder("TAKEOUT", "DRAFT", "1.00", null);
+        patchStatus(draft, "SUBMITTED").andExpect(status().isOk());
+        assertThat(orderStatus(draft)).isEqualTo("SUBMITTED");
+    }
+
     // --- Phase 2: fire commits independently of Kafka; concurrent fires are serialized ---
 
     @Test
