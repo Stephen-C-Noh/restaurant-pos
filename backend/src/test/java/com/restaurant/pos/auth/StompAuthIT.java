@@ -2,6 +2,7 @@ package com.restaurant.pos.auth;
 
 import com.restaurant.pos.IntegrationTest;
 import com.restaurant.pos.user.UserRepository;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -45,5 +46,16 @@ class StompAuthIT extends IntegrationTest {
         } else {
             assertThatThrownBy(() -> clientInbound.send(frame)).isInstanceOf(MessagingException.class);
         }
+    }
+
+    @Test
+    void subscribe_onASessionThatNeverAuthenticated_isRejected() {
+        StompHeaderAccessor subscribe = StompHeaderAccessor.create(StompCommand.SUBSCRIBE);
+        subscribe.setSessionId("it-skipped-connect");
+        subscribe.setSubscriptionId("sub-0");
+        subscribe.setDestination("/topic/orders");
+        Message<byte[]> frame = MessageBuilder.createMessage(new byte[0], subscribe.getMessageHeaders());
+
+        assertThatThrownBy(() -> clientInbound.send(frame)).isInstanceOf(MessagingException.class);
     }
 }

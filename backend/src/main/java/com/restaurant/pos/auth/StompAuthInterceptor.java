@@ -17,7 +17,7 @@ import org.springframework.stereotype.Component;
 import java.util.List;
 import java.util.UUID;
 
-/** Authenticates the STOMP CONNECT frame: the SockJS handshake cannot carry an Authorization header. */
+/** Authenticates the STOMP CONNECT frame and rejects SUBSCRIBE without a user: the SockJS handshake cannot carry an Authorization header. */
 @Component
 public class StompAuthInterceptor implements ChannelInterceptor {
 
@@ -48,6 +48,9 @@ public class StompAuthInterceptor implements ChannelInterceptor {
             }
             accessor.setUser(new UsernamePasswordAuthenticationToken(
                     user, null, List.of(new SimpleGrantedAuthority("ROLE_" + user.getRole().name()))));
+        }
+        if (accessor != null && StompCommand.SUBSCRIBE.equals(accessor.getCommand()) && accessor.getUser() == null) {
+            throw new MessagingException("Subscribe needs an authenticated session");
         }
         return message;
     }
