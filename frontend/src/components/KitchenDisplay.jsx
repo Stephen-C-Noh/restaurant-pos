@@ -116,8 +116,16 @@ function KitchenDisplay() {
 
                 // Subscribe to order updates
                 client.subscribe('/topic/orders', (message) =>{
+                    const recvAt = Date.now();
                     console.log('Received Order: ', message.body);
                     const newOrder = JSON.parse(message.body);
+
+                    // Fire-to-screen latency probe for docs/perf/kds-latency.md; inert without ?latency=1
+                    if (new URLSearchParams(window.location.search).get('latency') === '1') requestAnimationFrame(() => requestAnimationFrame(() => {
+                        (window.__kdsLatency ??= []).push({
+                            orderNumber: newOrder.orderNumber, firedAt: Date.parse(newOrder.firedAt), recvAt, renderAt: Date.now(),
+                        });
+                    }));
 
                     // The kitchen no longer has this order (cancelled): drop the ticket, no sound
                     if (!['FIRED', 'PREPARING', 'READY'].includes(newOrder.status)) {

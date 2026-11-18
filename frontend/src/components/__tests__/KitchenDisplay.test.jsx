@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, act, waitFor } from '@testing-library/react';
 
 vi.mock('../../services/api', () => ({
@@ -29,6 +29,13 @@ describe('KitchenDisplay', () => {
         window.AudioContext = vi.fn(function () {
             this.state = 'running';
         });
+        delete window.__kdsLatency;
+        window.history.pushState({}, '', '/');
+    });
+
+    afterEach(() => {
+        delete window.__kdsLatency;
+        window.history.pushState({}, '', '/');
     });
 
     it('reloads the active orders on every (re)connect', async () => {
@@ -74,5 +81,46 @@ describe('KitchenDisplay', () => {
         act(() => stompConfig.onStompError({ headers: { message: 'Invalid token' } }));
 
         expect(useAuthStore.getState().token).toBeNull();
+    });
+
+    it('with ?latency=1, records one fire-to-render sample per pushed order', async () => {
+        window.history.pushState({}, '', '/kds?latency=1');
+        // A brand-new order beeps, so the fake AudioContext needs the nodes playBeep builds
+        const node = () => ({ connect: vi.fn(), start: vi.fn(), stop: vi.fn(), frequency: {}, gain: { setValueAtTime: vi.fn(), exponentialRampToValueAtTime: vi.fn() } });
+        window.AudioContext = vi.fn(function () {
+            this.state = 'running'; this.currentTime = 0; this.destination = {};
+            this.createOscillator = node; this.createGain = node;
+        });
+        const fired = {
+            id: 'o1', orderNumber: 'ORD-7', status: 'FIRED', firedAt: new Date().toISOString(),
+            items: [{ id: 'i1', menuItemName: 'Burger', quantity: 1, status: 'FIRED', section: 'GRILL' }],
+        };
+        render(<KitchenDisplay />);
+        await waitFor(() => expect(api.get).toHaveBeenCalled());
+        await act(async () => { stompConfig.onConnect(); });
+
+        act(() => pushOrder({ body: JSON.stringify(fired) }));
+
+        const mine = () => window.__kdsLatency.filter(s => s.orderNumber === 'ORD-7');
+        await waitFor(() => expect(mine()).toHaveLength(1));
+        const [sample] = mine();
+        expect(sample.firedAt).toBe(Date.parse(fired.firedAt));
+        expect(sample.recvAt).toBeLessThanOrEqual(sample.renderAt);
+    });
+
+    it('without ?latency=1, pushing an order records nothing', async () => {
+        const fired = {
+            id: 'o1', orderNumber: 'ORD-8', status: 'FIRED', firedAt: new Date().toISOString(),
+            items: [{ id: 'i1', menuItemName: 'Burger', quantity: 1, status: 'FIRED', section: 'GRILL' }],
+        };
+        api.get.mockResolvedValue({ data: [fired] }); // already on screen: an update, so no beep
+        render(<KitchenDisplay />);
+        await screen.findByText('ORD-8');
+        await act(async () => { stompConfig.onConnect(); });
+
+        act(() => pushOrder({ body: JSON.stringify(fired) }));
+        await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))); // let any probe frames run
+
+        expect(window.__kdsLatency).toBeUndefined();
     });
 });
