@@ -267,6 +267,18 @@ class FireOrderIT extends IntegrationTest {
         assertThat(ids).doesNotContainAnyElementsOf(inactive.stream().map(UUID::toString).toList());
     }
 
+    // --- PATCH /status ------------------------------------------------------
+
+    @ParameterizedTest
+    @CsvSource({"FIRED,COMPLETED", "FIRED,CANCELLED", "DRAFT,FIRED", "COMPLETED,READY", "CANCELLED,DRAFT", "READY,PREPARING"})
+    void patchStatus_toADisallowedStatus_is409_andChangesNothing(String from, String to) throws Exception {
+        UUID orderId = insertOrder("TAKEOUT", from, "1.00", null);
+
+        patchStatus(orderId, to).andExpect(status().isConflict());
+
+        assertThat(orderStatus(orderId)).isEqualTo(from);
+    }
+
     // --- Phase 2: fire commits independently of Kafka; concurrent fires are serialized ---
 
     @Test
@@ -707,6 +719,10 @@ class FireOrderIT extends IntegrationTest {
 
     private ResultActions fire(UUID orderId) throws Exception {
         return mvc.perform(authed(post("/api/orders/" + orderId + "/fire"), "server1"));
+    }
+
+    private ResultActions patchStatus(UUID orderId, String newStatus) throws Exception {
+        return mvc.perform(authed(patch("/api/orders/" + orderId + "/status").param("status", newStatus), "server1"));
     }
 
     private ResultActions itemStatus(UUID orderId, UUID itemId, String newStatus) throws Exception {

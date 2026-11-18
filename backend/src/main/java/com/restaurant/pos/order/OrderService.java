@@ -157,6 +157,9 @@ public class OrderService {
     public OrderResponse updateOrderStatus(UUID id, OrderStatus newStatus) {
         Order order = orderRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Order not found: " + id));
+        if (!order.getStatus().canPatchTo(newStatus)) {
+            throw new BusinessRuleException("Cannot change order status from " + order.getStatus() + " to " + newStatus);
+        }
         order.setStatus(newStatus);
         orderRepository.save(order);
         return toOrderResponse(order);
