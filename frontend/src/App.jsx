@@ -15,7 +15,7 @@ function ProtectedRoute({ children, allowedRoles }) {
   }
 
   if (allowedRoles && !allowedRoles.includes(user.role)) {
-    const fallback = user.role === 'SERVER' ? '/pos' : '/admin'
+    const fallback = { SERVER: '/pos', KITCHEN: '/kds' }[user.role] ?? '/admin'
     return <Navigate to={fallback} replace />
   }
 

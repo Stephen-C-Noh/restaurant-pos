@@ -28,4 +28,11 @@ describe('App routes', () => {
         expect(screen.getByText('login page')).toBeInTheDocument();
         expect(screen.queryByText('kitchen page')).toBeNull();
     });
+
+    it('sends a kitchen user on a route it may not use to /kds, not in a loop', () => {
+        visit('/admin', { id: 'k1', username: 'kitchen1', role: 'KITCHEN' });
+
+        expect(screen.getByText('kitchen page')).toBeInTheDocument();
+        expect(window.location.pathname).toBe('/kds');
+    });
 });
