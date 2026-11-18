@@ -1,8 +1,6 @@
 package com.restaurant.pos.order;
 
-import com.restaurant.pos.events.EventPublisher;
-import com.restaurant.pos.events.ItemStatusChangedEvent;
-import com.restaurant.pos.events.OrderFiredEvent;
+import com.restaurant.pos.events.OutboxRelay;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
@@ -11,10 +9,9 @@ import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
 
 /**
- * Push and publish only after the order transaction committed: a rollback sends nothing,
- * and a slow or dead Kafka can no longer fail the fire. It still delays the response by up to
- * max.block.ms (1 s, KafkaConfig), during which open-in-view keeps the request's DB connection.
- * Each step logs and swallows its own failure.
+ * Runs only after the order transaction committed: a rollback pushes nothing. The Kafka event is already
+ * durable in the outbox by then; the relay kick below only saves it from waiting for the next poll, and it
+ * never blocks the request. Each step logs and swallows its own failure.
  */
 @Component
 @RequiredArgsConstructor
@@ -22,7 +19,7 @@ import org.springframework.transaction.event.TransactionalEventListener;
 public class OrderEvents {
 
     private final SimpMessagingTemplate messagingTemplate;
-    private final EventPublisher eventPublisher;
+    private final OutboxRelay relay;
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void onOrderChanged(OrderChanged changed) {
@@ -32,14 +29,6 @@ public class OrderEvents {
         } catch (Exception e) {
             log.error("WebSocket push failed for order {}", changed.order().getId(), e);
         }
-        try {
-            if (changed.event() instanceof OrderFiredEvent e) {
-                eventPublisher.publishOrderFiredEvent(e);
-            } else if (changed.event() instanceof ItemStatusChangedEvent e) {
-                eventPublisher.publishItemStatusChangedEvent(e);
-            }
-        } catch (Exception e) {
-            log.error("Kafka publish failed for order {}", changed.order().getId(), e);
-        }
+        relay.kick();
     }
 }

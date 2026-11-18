@@ -1,13 +1,20 @@
 package com.restaurant.pos;
 
 import com.restaurant.pos.auth.JwtService;
+import com.restaurant.pos.order.OrderChanged;
 import com.restaurant.pos.user.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.context.annotation.Import;
+import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.test.context.EmbeddedKafka;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
+import org.springframework.transaction.event.TransactionPhase;
+import org.springframework.transaction.event.TransactionalEventListener;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import org.testcontainers.containers.PostgreSQLContainer;
@@ -19,10 +26,15 @@ import java.util.UUID;
  * Base for *IT classes: full app on a real Postgres + embedded Kafka.
  * One container for the whole run (started once, reaped by Testcontainers) so the
  * cached Spring context never points at a stopped database.
+ * <p>
+ * Every IT class must share ONE Spring context: each context runs its own outbox relay against the same
+ * Postgres, and a relay from another context would publish this context's rows to its own embedded broker.
+ * So the spies and test beans live here, not in the subclasses.
  */
 @SpringBootTest(properties = "spring.kafka.bootstrap-servers=${spring.embedded.kafka.brokers}")
 @AutoConfigureMockMvc
 @EmbeddedKafka
+@Import(IntegrationTest.FailBeforeCommit.class)
 public abstract class IntegrationTest {
 
     @ServiceConnection
@@ -30,6 +42,22 @@ public abstract class IntegrationTest {
 
     static {
         postgres.start();
+    }
+
+    // Delegates to the real template unless a test stubs it; reset after each test.
+    @MockitoSpyBean protected KafkaTemplate<String, String> outboxKafkaTemplate;
+
+    /** Arm to make the next order transaction fail at commit time, after everything it wrote. */
+    @TestConfiguration(proxyBeanMethods = false)
+    public static class FailBeforeCommit {
+        public static volatile boolean armed;
+
+        @TransactionalEventListener(phase = TransactionPhase.BEFORE_COMMIT)
+        public void failIfArmed(OrderChanged changed) {
+            if (armed) {
+                throw new IllegalStateException("test: fail before commit");
+            }
+        }
     }
 
     @Autowired protected MockMvc mvc;

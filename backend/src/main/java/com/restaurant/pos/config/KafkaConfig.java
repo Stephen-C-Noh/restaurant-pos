@@ -1,6 +1,5 @@
 package com.restaurant.pos.config;
 
-import com.restaurant.pos.events.DomainEvent;
 import com.restaurant.pos.events.ItemStatusChangedEvent;
 import com.restaurant.pos.events.OrderFiredEvent;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
@@ -14,7 +13,6 @@ import org.springframework.kafka.annotation.EnableKafka;
 import org.springframework.kafka.config.ConcurrentKafkaListenerContainerFactory;
 import org.springframework.kafka.core.*;
 import org.springframework.kafka.support.serializer.JsonDeserializer;
-import org.springframework.kafka.support.serializer.JsonSerializer;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -26,25 +24,29 @@ public class KafkaConfig {
     @Value("${spring.kafka.bootstrap-servers}")
     private String bootstrapServers;
 
-    // Producer Configuration
+    // Producer Configuration. The outbox relay sends the stored JSON string as is.
+    // max.block.ms: the relay thread waits at most 1 s for metadata when the broker is down.
     @Bean
-    public ProducerFactory<String, DomainEvent> producerFactory() {
+    public ProducerFactory<String, String> outboxProducerFactory() {
         Map<String, Object> config = new HashMap<>();
         config.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
         config.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
-        config.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, JsonSerializer.class);
+        config.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
         config.put(ProducerConfig.ACKS_CONFIG, "all");
         config.put(ProducerConfig.RETRIES_CONFIG, 3);
         config.put(ProducerConfig.ENABLE_IDEMPOTENCE_CONFIG, true);
-        config.put(JsonSerializer.ADD_TYPE_INFO_HEADERS, false);
-        // ponytail: sync send capped at 1s; go async if that 1s matters
         config.put(ProducerConfig.MAX_BLOCK_MS_CONFIG, 1000);
+        // The producer gives up on a record before the relay stops waiting for it (OutboxRelay.ACK_SECONDS),
+        // so a send the relay counted as failed is not delivered later from the buffer. With the 120 s default,
+        // every retry during an outage left one more copy that all landed once the broker came back.
+        config.put(ProducerConfig.REQUEST_TIMEOUT_MS_CONFIG, 4000);
+        config.put(ProducerConfig.DELIVERY_TIMEOUT_MS_CONFIG, 5000);
         return new DefaultKafkaProducerFactory<>(config);
     }
 
     @Bean
-    public KafkaTemplate<String, DomainEvent> kafkaTemplate() {
-        return new KafkaTemplate<>(producerFactory());
+    public KafkaTemplate<String, String> outboxKafkaTemplate() {
+        return new KafkaTemplate<>(outboxProducerFactory());
     }
 
     // Consumer Configuration - Simple!
