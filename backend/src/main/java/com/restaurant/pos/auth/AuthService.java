@@ -1,7 +1,6 @@
 package com.restaurant.pos.auth;
 
 import com.restaurant.pos.common.BusinessRuleException;
-import com.restaurant.pos.user.Role;
 import com.restaurant.pos.user.User;
 import com.restaurant.pos.user.UserRepository;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -28,7 +27,6 @@ public class AuthService {
         List<User> activeUsers = userRepository.findAllByStatus("ACTIVE");
 
         User matched = activeUsers.stream()
-                .filter(u -> u.getRole() != Role.KITCHEN)
                 .filter(u -> u.getPinHash() != null)
                 .filter(u -> pinEncoder.matches(pin, u.getPinHash()))
                 .findFirst()
