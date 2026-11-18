@@ -127,6 +127,9 @@ cd frontend
 npm test
 ```
 
+### CI
+Every pull request and every push to `master` runs `.github/workflows/ci.yml`: `./mvnw -B verify -Pit` (unit tests, then the integration tests), and in `frontend/` `npx vitest run`, `npm run lint` and `npm run build`.
+
 ## 📝 Development Workflow
 
 1. **Phase 1**: Basic order creation and display
