@@ -177,7 +177,7 @@ public class OrderService {
                     + ". " + switch (newStatus) {
                         case FIRED -> "Fire the order with POST /api/orders/{id}/fire.";
                         case COMPLETED -> "An order is completed by payment.";
-                        case CANCELLED -> "Cancelling is not available yet.";
+                        case CANCELLED -> "Cancel the order with POST /api/orders/{id}/cancel.";
                         default -> "Allowed: repeat the status, DRAFT to SUBMITTED, FIRED to PREPARING to READY.";
                     });
         }

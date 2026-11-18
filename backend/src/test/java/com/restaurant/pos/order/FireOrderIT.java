@@ -289,7 +289,7 @@ class FireOrderIT extends IntegrationTest {
     @CsvSource({
             "FIRED,       POST /api/orders/{id}/fire",
             "COMPLETED,   completed by payment",
-            "CANCELLED,   Cancelling is not available yet"})
+            "CANCELLED,   POST /api/orders/{id}/cancel"})
     void patchStatus_rejection_namesTheRightDoor(String to, String expectedHint) throws Exception {
         UUID orderId = insertOrder("TAKEOUT", "SUBMITTED", "1.00", null);
 
