@@ -84,6 +84,7 @@ public class KafkaConfig {
         ConcurrentKafkaListenerContainerFactory<String, OrderFiredEvent> factory =
                 new ConcurrentKafkaListenerContainerFactory<>();
         factory.setConsumerFactory(orderFiredConsumerFactory());
+        factory.setAutoStartup(false); // started by KdsConsumerStarter, so an unreachable Kafka cannot stop the app
         return factory;
     }
 
@@ -93,6 +94,7 @@ public class KafkaConfig {
         ConcurrentKafkaListenerContainerFactory<String, ItemStatusChangedEvent> factory =
                 new ConcurrentKafkaListenerContainerFactory<>();
         factory.setConsumerFactory(itemStatusConsumerFactory());
+        factory.setAutoStartup(false); // see orderFiredKafkaListenerContainerFactory
         return factory;
     }
 }

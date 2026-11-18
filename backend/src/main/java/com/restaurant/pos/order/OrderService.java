@@ -26,6 +26,7 @@ import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -38,6 +39,9 @@ public class OrderService {
     private static final String ORDER_FIRED_TOPIC = "order-fired-events";
     private static final String ITEM_STATUS_TOPIC = "item-status-events";
 
+    /** What the kitchen screen shows. */
+    private static final Set<OrderStatus> KITCHEN_VISIBLE =
+            Set.of(OrderStatus.FIRED, OrderStatus.PREPARING, OrderStatus.READY);
     private static final Set<OrderStatus> TERMINAL = Set.of(OrderStatus.COMPLETED, OrderStatus.CANCELLED);
 
     private final OrderRepository orderRepository;
@@ -59,6 +63,13 @@ public class OrderService {
                 .stream()
                 .map(this::toOrderResponse)
                 .collect(Collectors.toList());
+    }
+
+    @Transactional(readOnly = true)
+    public Optional<OrderResponse> findKitchenOrder(UUID id) {
+        return orderRepository.findById(id)
+                .filter(o -> KITCHEN_VISIBLE.contains(o.getStatus()))
+                .map(this::toOrderResponse);
     }
 
     @Transactional(readOnly = true)
@@ -294,11 +305,10 @@ public class OrderService {
                 itemsBySection
         );
 
-        // The outbox row commits with the fire (the relay publishes it to Kafka); the WebSocket push happens after commit (see OrderEvents)
+        // The outbox row commits with the fire; the relay publishes it to Kafka and the KDS consumer pushes the order
         outbox.add(event, ORDER_FIRED_TOPIC);
-        OrderResponse response = toOrderResponse(order);
-        events.publishEvent(new OrderChanged(event, response));
-        return response;
+        events.publishEvent(new OrderChanged(event));
+        return toOrderResponse(order);
     }
 
     /**
@@ -351,11 +361,9 @@ public class OrderService {
                 newStatus
         );
 
-        // get Updated Order info
-        Order updatedOrder = orderRepository.findById(orderId).orElseThrow(() -> new ResourceNotFoundException("Order not found: " + orderId));
-        // The outbox row commits with the status change (the relay publishes it to Kafka); the WebSocket push happens after commit (see OrderEvents)
+        // The outbox row commits with the status change; the relay publishes it to Kafka and the KDS consumer pushes the order
         outbox.add(event, ITEM_STATUS_TOPIC);
-        events.publishEvent(new OrderChanged(event, toOrderResponse(updatedOrder)));
+        events.publishEvent(new OrderChanged(event));
 
         return toOrderItemResponse(item);
     }
