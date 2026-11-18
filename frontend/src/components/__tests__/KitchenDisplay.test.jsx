@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, waitFor } from '@testing-library/react';
+import { render, screen, act, waitFor } from '@testing-library/react';
 
 vi.mock('../../services/api', () => ({
     default: { get: vi.fn(), patch: vi.fn() },
@@ -8,10 +8,11 @@ vi.mock('sockjs-client', () => ({ default: vi.fn() }));
 
 // Capture the config KitchenDisplay hands to the STOMP client so the test can fire onConnect itself.
 let stompConfig;
+let pushOrder; // the /topic/orders callback
 vi.mock('@stomp/stompjs', () => ({
     Client: vi.fn(function (config) {
         stompConfig = config;
-        this.subscribe = vi.fn();
+        this.subscribe = vi.fn((destination, callback) => { pushOrder = callback; });
         this.activate = vi.fn();
         this.deactivate = vi.fn();
     }),
@@ -39,5 +40,20 @@ describe('KitchenDisplay', () => {
 
         await waitFor(() => expect(api.get).toHaveBeenCalledTimes(3));
         expect(api.get).toHaveBeenLastCalledWith(expect.stringContaining('/api/orders/active'));
+    });
+
+    it('removes a ticket when a pushed order is no longer FIRED, PREPARING or READY', async () => {
+        const fired = {
+            id: 'o1', orderNumber: 'ORD-1', status: 'FIRED', firedAt: new Date().toISOString(),
+            items: [{ id: 'i1', menuItemName: 'Burger', quantity: 1, status: 'FIRED', section: 'GRILL' }],
+        };
+        api.get.mockResolvedValue({ data: [fired] });
+        render(<KitchenDisplay />);
+        await screen.findByText('ORD-1');
+        await act(async () => { stompConfig.onConnect(); }); // settles the reload that every connect triggers
+
+        act(() => pushOrder({ body: JSON.stringify({ ...fired, status: 'CANCELLED' }) }));
+
+        await waitFor(() => expect(screen.queryByText('ORD-1')).toBeNull());
     });
 });

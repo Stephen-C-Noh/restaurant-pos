@@ -1,6 +1,7 @@
 package com.restaurant.pos.config;
 
 import com.restaurant.pos.events.ItemStatusChangedEvent;
+import com.restaurant.pos.events.OrderCancelledEvent;
 import com.restaurant.pos.events.OrderFiredEvent;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.producer.ProducerConfig;
@@ -49,10 +50,8 @@ public class KafkaConfig {
         return new KafkaTemplate<>(outboxProducerFactory());
     }
 
-    // Consumer Configuration - Simple!
-    // Consumer Factory for OrderFiredEvent
-    @Bean
-    public ConsumerFactory<String, OrderFiredEvent> orderFiredConsumerFactory() {
+    // Consumer Configuration - Simple! One factory per event type; they differ only in the type they deserialize to.
+    private <T> ConsumerFactory<String, T> kdsConsumerFactory(Class<T> type) {
         Map<String, Object> config = new HashMap<>();
         config.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
         config.put(ConsumerConfig.GROUP_ID_CONFIG, "kds-consumer-group");
@@ -60,22 +59,36 @@ public class KafkaConfig {
         config.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, JsonDeserializer.class);
         config.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
         config.put(JsonDeserializer.TRUSTED_PACKAGES, "*");
-        config.put(JsonDeserializer.VALUE_DEFAULT_TYPE, "com.restaurant.pos.events.OrderFiredEvent");
+        config.put(JsonDeserializer.VALUE_DEFAULT_TYPE, type.getName());
         return new DefaultKafkaConsumerFactory<>(config);
+    }
+
+    // Consumer Factory for OrderFiredEvent
+    @Bean
+    public ConsumerFactory<String, OrderFiredEvent> orderFiredConsumerFactory() {
+        return kdsConsumerFactory(OrderFiredEvent.class);
     }
 
     // Consumer Factory for ItemStatusChangedEvent
     @Bean
     public ConsumerFactory<String, ItemStatusChangedEvent> itemStatusConsumerFactory() {
-        Map<String, Object> config = new HashMap<>();
-        config.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
-        config.put(ConsumerConfig.GROUP_ID_CONFIG, "kds-consumer-group");
-        config.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
-        config.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, JsonDeserializer.class);
-        config.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
-        config.put(JsonDeserializer.TRUSTED_PACKAGES, "*");
-        config.put(JsonDeserializer.VALUE_DEFAULT_TYPE, "com.restaurant.pos.events.ItemStatusChangedEvent");
-        return new DefaultKafkaConsumerFactory<>(config);
+        return kdsConsumerFactory(ItemStatusChangedEvent.class);
+    }
+
+    // Consumer Factory for OrderCancelledEvent
+    @Bean
+    public ConsumerFactory<String, OrderCancelledEvent> orderCancelledConsumerFactory() {
+        return kdsConsumerFactory(OrderCancelledEvent.class);
+    }
+
+    // Listener factory for OrderCancelledEvent
+    @Bean
+    public ConcurrentKafkaListenerContainerFactory<String, OrderCancelledEvent> orderCancelledKafkaListenerContainerFactory() {
+        ConcurrentKafkaListenerContainerFactory<String, OrderCancelledEvent> factory =
+                new ConcurrentKafkaListenerContainerFactory<>();
+        factory.setConsumerFactory(orderCancelledConsumerFactory());
+        factory.setAutoStartup(false); // see orderFiredKafkaListenerContainerFactory
+        return factory;
     }
 
     // Listener factory for OrderFiredEvent

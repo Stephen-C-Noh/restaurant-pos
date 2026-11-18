@@ -5,15 +5,21 @@ import com.restaurant.pos.common.ResourceNotFoundException;
 import com.restaurant.pos.table.TableRepository;
 import com.restaurant.pos.table.TableStatus;
 import com.restaurant.pos.events.ItemStatusChangedEvent;
+import com.restaurant.pos.events.OrderCancelledEvent;
 import com.restaurant.pos.events.OrderFiredEvent;
 import com.restaurant.pos.events.OrderItemEvent;
 import com.restaurant.pos.events.OutboxRepository;
 import com.restaurant.pos.menu.KitchenSection;
 import com.restaurant.pos.menu.MenuItem;
 import com.restaurant.pos.menu.MenuService;
+import com.restaurant.pos.payment.PaymentRepository;
+import com.restaurant.pos.payment.PaymentStatus;
+import com.restaurant.pos.user.Role;
+import com.restaurant.pos.user.User;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -38,6 +44,7 @@ public class OrderService {
 
     private static final String ORDER_FIRED_TOPIC = "order-fired-events";
     private static final String ITEM_STATUS_TOPIC = "item-status-events";
+    private static final String ORDER_CANCELLED_TOPIC = "order-cancelled-events";
 
     /** What the kitchen screen shows. */
     private static final Set<OrderStatus> KITCHEN_VISIBLE =
@@ -50,6 +57,7 @@ public class OrderService {
     private final ApplicationEventPublisher events;
     private final OutboxRepository outbox;
     private final TableRepository tableRepository;
+    private final PaymentRepository paymentRepository;
 
     @Transactional(readOnly = true)
     public List<OrderResponse> getAllOrders() {
@@ -69,6 +77,13 @@ public class OrderService {
     public Optional<OrderResponse> findKitchenOrder(UUID id) {
         return orderRepository.findById(id)
                 .filter(o -> KITCHEN_VISIBLE.contains(o.getStatus()))
+                .map(this::toOrderResponse);
+    }
+
+    @Transactional(readOnly = true)
+    public Optional<OrderResponse> findCancelledOrder(UUID id) {
+        return orderRepository.findById(id)
+                .filter(o -> o.getStatus() == OrderStatus.CANCELLED)
                 .map(this::toOrderResponse);
     }
 
@@ -162,12 +177,39 @@ public class OrderService {
                     + ". " + switch (newStatus) {
                         case FIRED -> "Fire the order with POST /api/orders/{id}/fire.";
                         case COMPLETED -> "An order is completed by payment.";
-                        case CANCELLED -> "Cancelling is not available yet.";
+                        case CANCELLED -> "Cancel the order with POST /api/orders/{id}/cancel.";
                         default -> "Allowed: repeat the status, DRAFT to SUBMITTED, FIRED to PREPARING to READY.";
                     });
         }
         order.setStatus(newStatus);
         orderRepository.save(order);
+        return toOrderResponse(order);
+    }
+
+    @Transactional
+    public OrderResponse cancel(UUID id, String reason, User user) {
+        Order order = orderRepository.findByIdForUpdate(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Order not found: " + id));
+        if (TERMINAL.contains(order.getStatus())) {
+            throw new BusinessRuleException("Order is already " + order.getStatus());
+        }
+        // Once the kitchen has the order, only a manager or admin may pull it back.
+        boolean kitchenHadIt = KITCHEN_VISIBLE.contains(order.getStatus());
+        if (kitchenHadIt && user.getRole() != Role.MANAGER && user.getRole() != Role.ADMIN) {
+            throw new AccessDeniedException("Only a manager or admin may cancel an order the kitchen has");
+        }
+        if (paymentRepository.existsByOrderIdAndStatus(id, PaymentStatus.CAPTURED)) {
+            throw new BusinessRuleException("Order has a captured payment; refund or void the payment first");
+        }
+        order.setCancelReason(reason);
+        order.setCancelledBy(user.getId());
+        close(order, OrderStatus.CANCELLED);
+        if (kitchenHadIt) {
+            // Same outbox path as fire: the KDS learns of the cancel and removes the ticket
+            OrderCancelledEvent event = new OrderCancelledEvent(id);
+            outbox.add(event, ORDER_CANCELLED_TOPIC);
+            events.publishEvent(new OrderChanged(event));
+        }
         return toOrderResponse(order);
     }
 

@@ -29,6 +29,18 @@ Content-Type: application/json
 
 ### Move an order along the kitchen path (needs a token from /api/auth)
 # Allowed: DRAFT -> SUBMITTED, FIRED -> PREPARING -> READY, or the same status again (no-op).
-# Anything else is 409: fire with POST /api/orders/{id}/fire, complete by payment; cancelling is not available yet.
+# Anything else is 409: fire with POST /api/orders/{id}/fire, complete by payment, cancel with POST /api/orders/{id}/cancel.
 PATCH http://localhost:8090/api/orders/{{orderId}}/status?status=PREPARING
 Authorization: Bearer {{token}}
+
+
+### Cancel an order (SERVER/MANAGER/ADMIN token from /api/auth; reason is required)
+# A SERVER may cancel DRAFT/SUBMITTED; once fired only a MANAGER or ADMIN. KITCHEN never.
+# 409 if the order is COMPLETED/CANCELLED or has a captured payment (refund or void it first).
+POST http://localhost:8090/api/orders/{{orderId}}/cancel
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "reason": "Guest left before ordering"
+}

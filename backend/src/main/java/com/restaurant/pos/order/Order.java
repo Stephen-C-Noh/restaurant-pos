@@ -52,6 +52,9 @@ public class Order {
     private Instant firedAt;
     private Instant completedAt;
 
+    private String cancelReason;
+    private UUID cancelledBy;
+
     @CreationTimestamp
     private Instant createdAt;
 

@@ -12,6 +12,8 @@ import java.util.UUID;
 public interface PaymentRepository extends JpaRepository<Payment, UUID> {
     Optional<Payment> findByIdempotencyKey(String idempotencyKey);
 
+    boolean existsByOrderIdAndStatus(UUID orderId, PaymentStatus status);
+
     @Query("SELECT COALESCE(SUM(p.amount), 0) FROM Payment p WHERE p.orderId = :orderId AND p.status IN :statuses")
     BigDecimal sumAmount(@Param("orderId") UUID orderId, @Param("statuses") Collection<PaymentStatus> statuses);
 }

@@ -1,6 +1,7 @@
 package com.restaurant.pos.kds;
 
 import com.restaurant.pos.events.ItemStatusChangedEvent;
+import com.restaurant.pos.events.OrderCancelledEvent;
 import com.restaurant.pos.events.OrderFiredEvent;
 import com.restaurant.pos.order.OrderService;
 import lombok.RequiredArgsConstructor;
@@ -32,6 +33,14 @@ public class KitchenDisplayService {
             containerFactory = "itemStatusKafkaListenerContainerFactory")
     public void handleItemStatusChanged(ItemStatusChangedEvent event) {
         push(event.getOrderId());
+    }
+
+    /** Tells the KDS to drop the ticket: pushes the order only if it is cancelled now. */
+    @KafkaListener(topics = "order-cancelled-events", groupId = "kds-consumer-group",
+            containerFactory = "orderCancelledKafkaListenerContainerFactory")
+    public void handleOrderCancelledEvent(OrderCancelledEvent event) {
+        orderService.findCancelledOrder(event.getOrderId())
+                .ifPresent(order -> messagingTemplate.convertAndSend("/topic/orders", order));
     }
 
     private void push(UUID orderId) {
