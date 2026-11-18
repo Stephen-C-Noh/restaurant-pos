@@ -120,8 +120,8 @@ function KitchenDisplay() {
                     console.log('Received Order: ', message.body);
                     const newOrder = JSON.parse(message.body);
 
-                    // Fire-to-screen latency probe for docs/perf/kds-latency.md
-                    requestAnimationFrame(() => requestAnimationFrame(() => {
+                    // Fire-to-screen latency probe for docs/perf/kds-latency.md; inert without ?latency=1
+                    if (new URLSearchParams(window.location.search).get('latency') === '1') requestAnimationFrame(() => requestAnimationFrame(() => {
                         (window.__kdsLatency ??= []).push({
                             orderNumber: newOrder.orderNumber, firedAt: Date.parse(newOrder.firedAt), recvAt, renderAt: Date.now(),
                         });

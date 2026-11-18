@@ -107,4 +107,20 @@ describe('KitchenDisplay', () => {
         expect(sample.firedAt).toBe(Date.parse(fired.firedAt));
         expect(sample.recvAt).toBeLessThanOrEqual(sample.renderAt);
     });
+
+    it('without ?latency=1, pushing an order records nothing', async () => {
+        const fired = {
+            id: 'o1', orderNumber: 'ORD-8', status: 'FIRED', firedAt: new Date().toISOString(),
+            items: [{ id: 'i1', menuItemName: 'Burger', quantity: 1, status: 'FIRED', section: 'GRILL' }],
+        };
+        api.get.mockResolvedValue({ data: [fired] }); // already on screen: an update, so no beep
+        render(<KitchenDisplay />);
+        await screen.findByText('ORD-8');
+        await act(async () => { stompConfig.onConnect(); });
+
+        act(() => pushOrder({ body: JSON.stringify(fired) }));
+        await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))); // let any probe frames run
+
+        expect(window.__kdsLatency).toBeUndefined();
+    });
 });
