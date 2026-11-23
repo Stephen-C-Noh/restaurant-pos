@@ -50,6 +50,15 @@ describe('KitchenDisplay', () => {
         expect(api.get).toHaveBeenLastCalledWith(expect.stringContaining('/api/orders/active'));
     });
 
+    it('uses same-origin URLs so it works through the frontend proxy on any device', async () => {
+        const { default: SockJS } = await import('sockjs-client');
+        render(<KitchenDisplay />);
+        await waitFor(() => expect(api.get).toHaveBeenCalledWith('/api/orders/active'));
+
+        stompConfig.webSocketFactory();
+        expect(SockJS).toHaveBeenCalledWith('/ws');
+    });
+
     it('removes a ticket when a pushed order is no longer FIRED, PREPARING or READY', async () => {
         const fired = {
             id: 'o1', orderNumber: 'ORD-1', status: 'FIRED', firedAt: new Date().toISOString(),

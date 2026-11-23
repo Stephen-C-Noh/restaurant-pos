@@ -70,7 +70,7 @@ function KitchenDisplay() {
     };
 
     const fetchOrders = () => {
-        api.get('http://localhost:8090/api/orders/active')
+        api.get('/api/orders/active')
             .then(response => {
                 const newOrders = response.data;
 
@@ -95,7 +95,7 @@ function KitchenDisplay() {
 
     // Update Order Status(PATCH request)
     const updateItemStatus = (orderId, itemId, newStatus) => {
-        api.patch(`http://localhost:8090/api/orders/${orderId}/items/${itemId}/status`,
+        api.patch(`/api/orders/${orderId}/items/${itemId}/status`,
             { status: newStatus })  // ✅ Close the config object
             .then(() => console.log(orderId + "'s " + itemId + "'s Status updated to: " + newStatus))
             .catch(error => console.log(error));
@@ -105,7 +105,7 @@ function KitchenDisplay() {
     useEffect(() =>{
         // Create WebSocket Client
         const client = new Client({
-            webSocketFactory:  () => new SockJS('http://localhost:8090/ws'),
+            webSocketFactory:  () => new SockJS('/ws'),
             // The SockJS handshake cannot carry a header, so the token travels on the STOMP CONNECT frame
             connectHeaders: { Authorization: `Bearer ${useAuthStore.getState().token}` },
             onConnect: () => {
